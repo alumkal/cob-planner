@@ -1,0 +1,28 @@
+{
+  "name": "cobplanner",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Cob Cannon Reuse Calculator for Plants vs Zombies",
+  "dependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "logic-solver": "^2.0.1",
+    "vite": "^7.0.2",
+    "vue": "^3.5.17",
+    "vue-router": "^4.5.1",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vitest/ui": "^3.2.4",
+    "vitest": "^3.2.4"
+  }
+}
