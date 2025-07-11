@@ -111,7 +111,7 @@
                       v-model.number="op.targetCol"
                       :min="op.type === 'fire' ? 0 : 1"
                       :max="op.type === 'fire' ? 9.9875 : 8"
-                      :step="op.type === 'fire' ? 0.0001 : 1"
+                      :step="op.type === 'fire' ? 0.0125 : 1"
                       @change="updateOperation(waveIndex, opIndex)"
                       :placeholder="op.type === 'fire' ? '目标列' : '列'"
                       :title="getValidationError(waveIndex, opIndex, 'targetCol') || ''"
@@ -469,6 +469,12 @@ export default {
         }
         if (targetCol < 0 || targetCol > 9.9875) {
           return '目标列必须在 0-9.9875 范围内';
+        }
+        // Check if the value is a multiple of 1/80 (0.0125)
+        const scaledValue = Math.round(targetCol * 80);
+        const expectedValue = scaledValue / 80;
+        if (Math.abs(targetCol - expectedValue) > 1e-10) {
+          return '目标列必须是 1/80 的整数倍（如 0.0125, 0.025, 1.0000）';
         }
       } else {
         if (!Number.isInteger(targetCol)) {

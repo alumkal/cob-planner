@@ -98,8 +98,15 @@ describe('ReusePage Validation', () => {
   describe('validateTargetCol', () => {
     test('should accept valid target columns for fire operations', () => {
       expect(wrapper.vm.validateTargetCol(0, 'fire')).toBeNull();
-      expect(wrapper.vm.validateTargetCol(5.5, 'fire')).toBeNull();
-      expect(wrapper.vm.validateTargetCol(9.9875, 'fire')).toBeNull();
+      expect(wrapper.vm.validateTargetCol(0.0125, 'fire')).toBeNull(); // 1/80
+      expect(wrapper.vm.validateTargetCol(0.025, 'fire')).toBeNull(); // 2/80
+      expect(wrapper.vm.validateTargetCol(1.0, 'fire')).toBeNull(); // 80/80
+      expect(wrapper.vm.validateTargetCol(5.5, 'fire')).toBeNull(); // 440/80
+      expect(wrapper.vm.validateTargetCol(9.9875, 'fire')).toBeNull(); // 799/80
+      
+      // Test common game values
+      expect(wrapper.vm.validateTargetCol(8.0125, 'fire')).toBeNull(); // 641/80
+      expect(wrapper.vm.validateTargetCol(9.0, 'fire')).toBeNull(); // 720/80
     });
 
     test('should accept valid columns for plant/remove operations', () => {
@@ -112,6 +119,12 @@ describe('ReusePage Validation', () => {
       expect(wrapper.vm.validateTargetCol(null, 'fire')).toContain('列数不能为空');
       expect(wrapper.vm.validateTargetCol(-1, 'fire')).toContain('目标列必须在 0-9.9875 范围内');
       expect(wrapper.vm.validateTargetCol(10, 'fire')).toContain('目标列必须在 0-9.9875 范围内');
+      
+      // Test 1/80 multiple validation
+      expect(wrapper.vm.validateTargetCol(0.01, 'fire')).toContain('目标列必须是 1/80 的整数倍');
+      expect(wrapper.vm.validateTargetCol(0.013, 'fire')).toContain('目标列必须是 1/80 的整数倍');
+      expect(wrapper.vm.validateTargetCol(5.51, 'fire')).toContain('目标列必须是 1/80 的整数倍');
+      expect(wrapper.vm.validateTargetCol(1.01, 'fire')).toContain('目标列必须是 1/80 的整数倍');
     });
 
     test('should reject invalid columns for plant/remove operations', () => {
