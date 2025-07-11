@@ -68,14 +68,31 @@ describe('ReusePage Validation', () => {
       expect(wrapper.vm.validateTime('300.5')).toContain('时间必须是整数或变量表达式');
     });
 
-    test('should reject negative times', () => {
-      expect(wrapper.vm.validateTime('-100')).toContain('时间不能为负数');
+    test('should allow negative times if absolute time >= -600', () => {
+      // -100 without wave context should be allowed (no absolute time check)
+      expect(wrapper.vm.validateTime('-100')).toBeNull();
+      
+      // With wave context, check absolute time constraint
+      // Wave 0 starts at absolute time 0, so -100 gives absolute time -100 (valid)
+      expect(wrapper.vm.validateTime('-100', 0)).toBeNull();
+      
+      // Test case that would violate the -600 constraint
+      // Wave 0 starts at absolute time 0, so -700 gives absolute time -700 (invalid)
+      expect(wrapper.vm.validateTime('-700', 0)).toContain('绝对时间不能小于-600');
     });
 
     test('should reject invalid variable expressions', () => {
       expect(wrapper.vm.validateTime('w-')).toContain('时间必须是整数或变量表达式');
       expect(wrapper.vm.validateTime('w-abc')).toContain('时间必须是整数或变量表达式');
       expect(wrapper.vm.validateTime('x-200')).toContain('时间必须是整数或变量表达式');
+    });
+
+    test('should validate variable expressions with absolute time constraint', () => {
+      // w-200 in wave 0 (duration 601) gives absolute time 0 + (601-200) = 401 (valid)
+      expect(wrapper.vm.validateTime('w-200', 0)).toBeNull();
+      
+      // w-1300 in wave 0 (duration 601) gives absolute time 0 + (601-1300) = -699 (invalid)
+      expect(wrapper.vm.validateTime('w-1300', 0)).toContain('绝对时间不能小于-600');
     });
   });
 
@@ -163,9 +180,9 @@ describe('ReusePage Validation', () => {
     });
 
     test('should accept valid cannon planting', () => {
-      // No cannon at row 1, col 2
-      expect(wrapper.vm.validateCannonPosition(1, 2, 'plant')).toBeNull();
-      // No cannon at row 4, col 5
+      // No overlap with existing cannons - row 1, col 4 (far from cannon at 1,1)
+      expect(wrapper.vm.validateCannonPosition(1, 4, 'plant')).toBeNull();
+      // No overlap with existing cannons - row 4, col 5 (different row)
       expect(wrapper.vm.validateCannonPosition(4, 5, 'plant')).toBeNull();
     });
 
@@ -177,15 +194,93 @@ describe('ReusePage Validation', () => {
     });
 
     test('should reject invalid cannon planting', () => {
-      // Cannon already exists at row 1, col 1
-      expect(wrapper.vm.validateCannonPosition(1, 1, 'plant')).toContain('该位置已有炮，不能重复种植');
-      // Cannon already exists at row 2, col 3
-      expect(wrapper.vm.validateCannonPosition(2, 3, 'plant')).toContain('该位置已有炮，不能重复种植');
+      // Cannon already exists at row 1, col 1 - exact overlap
+      expect(wrapper.vm.validateCannonPosition(1, 1, 'plant')).toContain('该位置与已有炮重叠');
+      // Cannon already exists at row 2, col 3 - exact overlap
+      expect(wrapper.vm.validateCannonPosition(2, 3, 'plant')).toContain('该位置与已有炮重叠');
+      // Cannon at (1,1) occupies columns 1,2 - planting at (1,2) would overlap
+      expect(wrapper.vm.validateCannonPosition(1, 2, 'plant')).toContain('该位置与已有炮重叠');
+      // Cannon at (2,3) occupies columns 3,4 - planting at (2,4) would overlap
+      expect(wrapper.vm.validateCannonPosition(2, 4, 'plant')).toContain('该位置与已有炮重叠');
     });
 
     test('should return null for fire operations', () => {
       expect(wrapper.vm.validateCannonPosition(1, 1, 'fire')).toBeNull();
       expect(wrapper.vm.validateCannonPosition(5, 8, 'fire')).toBeNull();
+    });
+
+    test('should handle sequential plant/remove operations correctly', () => {
+      // Setup a wave with sequential operations: plant -> remove -> plant
+      const testWave = {
+        duration: 601,
+        operations: [
+          { type: 'plant', time: '0', columns: '1-8', row: 4, targetCol: 6 },
+          { type: 'remove', time: '1', columns: '1-8', row: 4, targetCol: 6 },
+          { type: 'plant', time: '2', columns: '1-8', row: 4, targetCol: 6 }
+        ]
+      };
+      
+      // Temporarily add this wave to the component
+      wrapper.vm.waves.push(testWave);
+      const waveIndex = wrapper.vm.waves.length - 1;
+      
+      // First plant operation (index 0) - should pass (no conflicts)
+      expect(wrapper.vm.validateCannonPosition(4, 6, 'plant', waveIndex, 0)).toBeNull();
+      
+      // Remove operation (index 1) - should pass (cannon was planted)
+      expect(wrapper.vm.validateCannonPosition(4, 6, 'remove', waveIndex, 1)).toBeNull();
+      
+      // Second plant operation (index 2) - should pass (cannon was removed)
+      expect(wrapper.vm.validateCannonPosition(4, 6, 'plant', waveIndex, 2)).toBeNull();
+      
+      // Clean up
+      wrapper.vm.waves.pop();
+    });
+
+    test('should handle cross-wave operations with negative time correctly', () => {
+      // Create a new test store with the cross-wave scenario
+      const testStore = createStore({
+        state: () => ({
+          theme: 'light',
+          rows: 5,
+          cannons: [{ row: 2, col: 6 }],
+          waves: [
+            {
+              duration: 601,
+              operations: [
+                { type: 'plant', time: '0', columns: '1-8', row: 4, targetCol: 6 },
+                { type: 'plant', time: '2', columns: '1-8', row: 4, targetCol: 6 }
+              ]
+            },
+            {
+              duration: 601,
+              operations: [
+                { type: 'remove', time: '-599', columns: '1-8', row: 4, targetCol: 6 },
+                { type: 'fire', time: '0', columns: '1-8', row: 1, targetCol: 9 }
+              ]
+            }
+          ]
+        }),
+        mutations: {
+          updateOperation() {},
+          addOperation() {},
+          removeOperation() {}
+        }
+      });
+      
+      // Mount component with test store
+      const testWrapper = mount(ReusePage, {
+        global: { plugins: [testStore] }
+      });
+      
+      // First plant operation (wave 0, index 0) - should pass (no conflicts)
+      expect(testWrapper.vm.validateCannonPosition(4, 6, 'plant', 0, 0)).toBeNull();
+      
+      // Remove operation (wave 1, index 0) - should pass (cannon was planted)
+      expect(testWrapper.vm.validateCannonPosition(4, 6, 'remove', 1, 0)).toBeNull();
+      
+      // Second plant operation (wave 0, index 1) - should pass (cannon was removed at same time)
+      expect(testWrapper.vm.validateCannonPosition(4, 6, 'plant', 0, 1)).toBeNull();
     });
   });
 

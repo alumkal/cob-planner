@@ -221,7 +221,7 @@
 </template>
 
 <script>
-import { solveReuse } from '../utils/solver.js';
+import { solveReuse, preprocessOperations } from '../utils/solver.js';
 import ExportDialog from './ExportDialog.vue';
 
 export default {
@@ -423,7 +423,7 @@ export default {
       this.nextOp = null;
       this.tooltipStyle.display = 'none';
     },
-    validateTime(timeStr) {
+    validateTime(timeStr, waveIndex = null) {
       if (!timeStr || timeStr.trim() === '') {
         return '时间不能为空';
       }
@@ -439,6 +439,15 @@ export default {
           if (!Number.isInteger(offset)) {
             return '变量表达式中的偏移量必须是整数';
           }
+          
+          // Check absolute time if wave context is available
+          if (waveIndex !== null && waveIndex < this.waves.length) {
+            const wave = this.waves[waveIndex];
+            const absoluteTime = this.calculateAbsoluteTime(waveIndex, wave.duration + offset);
+            if (absoluteTime < -600) {
+              return '绝对时间不能小于-600';
+            }
+          }
         }
         return null;
       }
@@ -449,11 +458,26 @@ export default {
         return '时间必须是整数或变量表达式（如 w-200）';
       }
       
-      if (num < 0) {
-        return '时间不能为负数';
+      // Check absolute time if wave context is available
+      if (waveIndex !== null && waveIndex < this.waves.length) {
+        const absoluteTime = this.calculateAbsoluteTime(waveIndex, num);
+        if (absoluteTime < -600) {
+          return '绝对时间不能小于-600';
+        }
       }
       
       return null;
+    },
+    
+    // Calculate absolute time for a given wave and relative time
+    calculateAbsoluteTime(waveIndex, relativeTime) {
+      let absoluteTime = 0;
+      for (let i = 0; i < waveIndex; i++) {
+        if (i < this.waves.length) {
+          absoluteTime += this.waves[i].duration;
+        }
+      }
+      return absoluteTime + relativeTime;
     },
     validateRow(row, type) {
       if (row === null || row === undefined || row === '') {
@@ -543,22 +567,138 @@ export default {
       
       return null;
     },
-    validateCannonPosition(row, targetCol, type) {
+    validateCannonPosition(row, targetCol, type, waveIndex = 0, opIndex = 0) {
       if (type === 'remove') {
-        // Check if cannon exists at this position
-        const cannonExists = this.cannons.some(c => c.row === row && c.col === targetCol);
+        // For remove operations, check dynamically if cannon exists at operation time
+        const cannonExists = this.checkCannonExistsAtTime(row, targetCol, waveIndex, opIndex);
         if (!cannonExists) {
           return '该位置没有炮可以铲除';
         }
       } else if (type === 'plant') {
-        // Check if position is already occupied
-        const cannonExists = this.cannons.some(c => c.row === row && c.col === targetCol);
-        if (cannonExists) {
-          return '该位置已有炮，不能重复种植';
+        // For plant operations, check for 1x2 overlap dynamically
+        const wouldOverlap = this.checkPlantOverlapAtTime(row, targetCol, waveIndex, opIndex);
+        if (wouldOverlap) {
+          return '该位置与已有炮重叠（炮为1x2大小）';
         }
       }
       
       return null;
+    },
+    
+    // Check if two cannons would overlap (cannons are 1x2, centers must be 2+ apart in same row)
+    doCannonsOverlap(row1, col1, row2, col2) {
+      return row1 === row2 && Math.abs(col1 - col2) < 2;
+    },
+    
+    // Check if cannon exists at a specific time by simulating operations
+    checkCannonExistsAtTime(row, targetCol, currentWaveIndex, currentOpIndex) {
+      // Get all operations up to this point
+      const allOps = this.getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex);
+      
+      // Start with initial cannons
+      const cannonState = this.cannons.map(c => ({ row: c.row, col: c.col }));
+      
+      // Simulate operations chronologically
+      for (const op of allOps) {
+        if (op.type === 'plant') {
+          cannonState.push({ row: op.row, col: op.targetCol });
+        } else if (op.type === 'remove') {
+          const index = cannonState.findIndex(c => c.row === op.row && c.col === op.targetCol);
+          if (index !== -1) {
+            cannonState.splice(index, 1);
+          }
+        }
+      }
+      
+      // Check if cannon exists at target position
+      return cannonState.some(c => c.row === row && c.col === targetCol);
+    },
+    
+    // Check if planting would cause overlap at a specific time
+    checkPlantOverlapAtTime(row, targetCol, currentWaveIndex, currentOpIndex) {
+      // Get all operations up to this point
+      const allOps = this.getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex);
+      
+      // Start with initial cannons
+      const cannonState = this.cannons.map(c => ({ row: c.row, col: c.col }));
+      
+      // Simulate operations chronologically
+      for (const op of allOps) {
+        if (op.type === 'plant') {
+          cannonState.push({ row: op.row, col: op.targetCol });
+        } else if (op.type === 'remove') {
+          const index = cannonState.findIndex(c => c.row === op.row && c.col === op.targetCol);
+          if (index !== -1) {
+            cannonState.splice(index, 1);
+          }
+        }
+      }
+      
+      // Check if planting at target position would overlap with existing cannons
+      return cannonState.some(c => this.doCannonsOverlap(c.row, c.col, row, targetCol));
+    },
+    
+    // Get all operations up to a specific point, sorted by time
+    getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex) {
+      const allOps = [];
+      let absoluteTime = 0;
+      
+      // First, collect ALL operations with their absolute times
+      const allOperationsWithTime = [];
+      let waveStartTime = 0;
+      
+      for (let waveIndex = 0; waveIndex < this.waves.length; waveIndex++) {
+        const wave = this.waves[waveIndex];
+        
+        for (let opIndex = 0; opIndex < wave.operations.length; opIndex++) {
+          const op = wave.operations[opIndex];
+          
+          // Only include plant/remove operations
+          if (op.type === 'plant' || op.type === 'remove') {
+            // Parse the time expression
+            let time;
+            try {
+              const timeExpr = op.time.toString().replace(/w/g, wave.duration);
+              time = Math.floor(Function(`return ${timeExpr}`)());
+            } catch (e) {
+              time = 0;
+            }
+            
+            allOperationsWithTime.push({
+              ...op,
+              absoluteTime: waveStartTime + time,
+              waveIndex,
+              opIndex
+            });
+          }
+        }
+        
+        waveStartTime += wave.duration;
+      }
+      
+      // Sort all operations by absolute time
+      allOperationsWithTime.sort((a, b) => a.absoluteTime - b.absoluteTime);
+      
+      // Find the current operation in the sorted list
+      const currentOp = allOperationsWithTime.find(op => 
+        op.waveIndex === currentWaveIndex && op.opIndex === currentOpIndex
+      );
+      
+      if (!currentOp) {
+        return []; // Current operation not found
+      }
+      
+      // Return all operations that happen before the current operation in time
+      // Also include operations at the same time that are remove operations (they should process first)
+      return allOperationsWithTime.filter(op => {
+        if (op.absoluteTime < currentOp.absoluteTime) {
+          return true;
+        }
+        if (op.absoluteTime === currentOp.absoluteTime && op.type === 'remove' && currentOp.type === 'plant') {
+          return true;
+        }
+        return false;
+      });
     },
     validateWaveDuration(duration) {
       if (duration === null || duration === undefined || duration === '') {
@@ -588,7 +728,7 @@ export default {
       const errors = new Map();
       
       // Validate time
-      const timeError = this.validateTime(op.time);
+      const timeError = this.validateTime(op.time, waveIndex);
       if (timeError) {
         errors.set(`${waveIndex}-${opIndex}-time`, timeError);
       }
@@ -615,7 +755,7 @@ export default {
       
       // Validate cannon position for plant/remove operations
       if (op.type === 'plant' || op.type === 'remove') {
-        const cannonError = this.validateCannonPosition(op.row, op.targetCol, op.type);
+        const cannonError = this.validateCannonPosition(op.row, op.targetCol, op.type, waveIndex, opIndex);
         if (cannonError) {
           errors.set(`${waveIndex}-${opIndex}-targetCol`, cannonError);
         }

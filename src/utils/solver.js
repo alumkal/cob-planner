@@ -262,10 +262,77 @@ function calculateNextAvailableTimes(cannons) {
   return nextAvailableTimes;
 }
 
+/**
+ * Check if two cob cannons would overlap (cobs are 1x2, centers must be 2+ apart in same row)
+ * @param {number} row1 - Row of first cob
+ * @param {number} col1 - Column of first cob  
+ * @param {number} row2 - Row of second cob
+ * @param {number} col2 - Column of second cob
+ * @returns {boolean} True if cobs would overlap
+ */
+function doCobsOverlap(row1, col1, row2, col2) {
+  return row1 === row2 && Math.abs(col1 - col2) < 2;
+}
+
+/**
+ * Validate plant/remove operations by simulating them sequentially
+ * @param {Array} cannons - Initial cannons
+ * @param {Array} operations - All operations sorted by absolute time
+ * @returns {Object} Validation results for each operation
+ */
+function validateOperationsSequentially(cannons, operations) {
+  // Create a mutable cannon state, starting with initial cannons
+  const cannonState = cannons.map(c => ({ row: c.row, col: c.col, planted: true }));
+  const validationResults = {};
+  
+  // Sort operations by absolute time to simulate chronologically
+  const sortedOps = [...operations].sort((a, b) => a.absoluteTime - b.absoluteTime);
+  
+  for (const op of sortedOps) {
+    const opKey = `${op.waveIndex}-${op.opIndex}`;
+    
+    if (op.type === 'plant') {
+      // Check if we can plant at this position
+      const wouldOverlap = cannonState.some(cannon => 
+        cannon.planted && doCobsOverlap(cannon.row, cannon.col, op.row, op.targetCol)
+      );
+      
+      if (wouldOverlap) {
+        validationResults[opKey] = { success: false, reason: 'Overlaps with existing cob' };
+      } else {
+        // Plant is valid, add to state
+        cannonState.push({ row: op.row, col: op.targetCol, planted: true });
+        validationResults[opKey] = { success: true };
+      }
+      
+    } else if (op.type === 'remove') {
+      // Check if cannon exists at this position
+      const cannonIndex = cannonState.findIndex(c => c.row === op.row && c.col === op.targetCol && c.planted);
+      
+      if (cannonIndex === -1) {
+        validationResults[opKey] = { success: false, reason: 'No cannon exists at this position' };
+      } else {
+        // Remove is valid, remove from state
+        cannonState.splice(cannonIndex, 1);
+        validationResults[opKey] = { success: true };
+      }
+      
+    } else if (op.type === 'fire') {
+      // Fire operations don't change cannon state, validation handled by SAT solver
+      validationResults[opKey] = { success: true }; // Will be overridden by SAT results
+    }
+  }
+  
+  return validationResults;
+}
+
 export function solveReuse(cannons, waves) {
   // Preprocess operations
   const { operations, totalTime } = preprocessOperations(waves);
 
+  // Validate plant/remove operations sequentially  
+  const validationResults = validateOperationsSequentially(cannons, operations);
+  
   // Solve the reuse problem
   const result = solveCobReuse(cannons, operations);
 
@@ -281,25 +348,20 @@ export function solveReuse(cannons, waves) {
         cannonCol: fireResult ? fireResult.cannonCol : null
       };
     } else if (op.type === 'plant') {
-      // Plant operations are always successful (you can always plant a cannon)
+      // Plant operations validated by sequential simulation (checks overlaps)
+      const opKey = `${op.waveIndex}-${op.opIndex}`;
+      const validation = validationResults[opKey] || { success: false };
       return {
         ...op,
-        success: true
+        success: validation.success
       };
     } else if (op.type === 'remove') {
-      // Remove operations are successful if the cannon exists at that position
-      // Check if there's a cannon at the specified position in the original cannons list
-      // or if it was planted earlier in this same operation sequence
-      const cannonExists = cannons.some(c => c.row === op.row && c.col === op.targetCol) ||
-        operations.some(otherOp => 
-          otherOp.type === 'plant' && 
-          otherOp.row === op.row && 
-          otherOp.targetCol === op.targetCol &&
-          otherOp.absoluteTime < op.absoluteTime
-        );
+      // Remove operations validated by sequential simulation (checks existence)
+      const opKey = `${op.waveIndex}-${op.opIndex}`;
+      const validation = validationResults[opKey] || { success: false };
       return {
         ...op,
-        success: cannonExists
+        success: validation.success
       };
     } else {
       // Unknown operation type
