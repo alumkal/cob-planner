@@ -7,9 +7,10 @@
  * Generate AvZ2 DSL code from calculation results
  * @param {Object} calculationResult - Result from solver
  * @param {Array} waves - Wave configuration from store
+ * @param {boolean} includeNotes - Whether to include notes as comments
  * @returns {string} Generated AvZ2 DSL code
  */
-export function generateAvZ2Code(calculationResult, waves) {
+export function generateAvZ2Code(calculationResult, waves, includeNotes = false) {
   if (!calculationResult || calculationResult.successCount === 0) {
     return '// No successful operations to export';
   }
@@ -22,7 +23,7 @@ export function generateAvZ2Code(calculationResult, waves) {
   for (let waveIndex = 0; waveIndex < waves.length; waveIndex++) {
     const waveOps = operationsByWave[waveIndex] || [];
     if (waveOps.length > 0) {
-      const waveCode = generateWaveBlock(waveIndex + 1, waveOps, waves[waveIndex]);
+      const waveCode = generateWaveBlock(waveIndex + 1, waveOps, waves[waveIndex], includeNotes);
       waveBlocks.push(waveCode);
     }
   }
@@ -73,7 +74,7 @@ function groupOperationsByWave(operations, waves) {
 /**
  * Generate code block for a single wave
  */
-function generateWaveBlock(waveNumber, operations, waveConfig) {
+function generateWaveBlock(waveNumber, operations, waveConfig, includeNotes = false) {
   // Group operations by time
   const operationsByTime = {};
   
@@ -99,7 +100,17 @@ function generateWaveBlock(waveNumber, operations, waveConfig) {
     timeBlocks.push(`    ${timeCommand} ${combinedOps}`);
   });
 
-  return `OnWave(${waveNumber}) {\n${timeBlocks.join(',\n')}\n};`;
+  // Prepare the wave block
+  let waveBlock = '';
+  
+  // Add note comment if enabled and wave has notes
+  if (includeNotes && waveConfig.notes && waveConfig.notes.trim()) {
+    waveBlock += `// ${waveConfig.notes.trim()}\n`;
+  }
+  
+  waveBlock += `OnWave(${waveNumber}) {\n${timeBlocks.join(',\n')}\n};`;
+  
+  return waveBlock;
 }
 
 /**

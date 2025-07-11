@@ -18,17 +18,29 @@
               <div class="wave-header" :class="theme === 'dark' ? 'dark-theme' : ''">
                 <div class="wave-info">
                   <h6 class="wave-title">波次 {{ waveIndex + 1 }}</h6>
-                  <div class="wave-duration">
-                    <label>波长:</label>
-                    <input
-                      type="number"
-                      class="form-control form-control-sm"
-                      :class="{ 'is-invalid': getWaveDurationError(waveIndex) }"
-                      v-model.number="wave.duration"
-                      min="1"
-                      @change="updateWave(waveIndex)"
-                      :title="getWaveDurationError(waveIndex) || ''"
-                    />
+                  <div class="wave-inputs">
+                    <div class="wave-duration">
+                      <label>波长:</label>
+                      <input
+                        type="number"
+                        class="form-control form-control-sm"
+                        :class="{ 'is-invalid': getWaveDurationError(waveIndex) }"
+                        v-model.number="wave.duration"
+                        min="1"
+                        @change="updateWave(waveIndex)"
+                        :title="getWaveDurationError(waveIndex) || ''"
+                      />
+                    </div>
+                    <div class="wave-notes">
+                      <label>备注:</label>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        v-model="wave.notes"
+                        @change="updateWave(waveIndex)"
+                        placeholder="在此输入备注信息..."
+                      />
+                    </div>
                   </div>
                 </div>
                 <button class="btn btn-sm btn-danger" @click="removeWave(waveIndex)">
@@ -720,6 +732,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 20px;
+  flex: 1;
+  margin-right: 16px;
 }
 
 .wave-title {
@@ -732,10 +746,18 @@ export default {
   color: #adb5bd;
 }
 
+.wave-inputs {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
 .wave-duration {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .wave-duration label {
@@ -747,6 +769,26 @@ export default {
 
 .wave-duration input {
   width: 80px;
+}
+
+.wave-notes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.wave-notes label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.wave-notes input {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Operations Grid Styling */
@@ -1008,7 +1050,13 @@ export default {
     gap: 8px;
   }
 
-  .wave-duration {
+  .wave-inputs {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .wave-duration,
+  .wave-notes {
     justify-content: space-between;
   }
 

@@ -21,6 +21,18 @@
             </select>
           </div>
           
+          <div class="export-options mb-3">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                v-model="includeNotes"
+                class="form-checkbox"
+              />
+              <span class="checkmark"></span>
+              导出备注（在 OnWave 前添加注释）
+            </label>
+          </div>
+          
           <div class="code-container">
             <label class="form-label">生成的代码:</label>
             <textarea
@@ -82,6 +94,7 @@ export default {
   data() {
     return {
       selectedFormat: 'avz2',
+      includeNotes: true,
       copyButtonText: '复制到剪贴板',
       copyTimeout: null
     };
@@ -94,7 +107,7 @@ export default {
       
       switch (this.selectedFormat) {
         case 'avz2':
-          return generateAvZ2Code(this.calculationResult, this.waves);
+          return generateAvZ2Code(this.calculationResult, this.waves, this.includeNotes);
         default:
           return '';
       }
@@ -259,6 +272,31 @@ export default {
 
 .format-selector {
   margin-bottom: 16px;
+}
+
+.export-options {
+  margin-bottom: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+.form-checkbox {
+  margin-right: 8px;
+  transform: scale(1.1);
+}
+
+.checkmark {
+  color: #495057;
+}
+
+.dark-theme .checkmark {
+  color: #adb5bd;
 }
 
 .form-label {

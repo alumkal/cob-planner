@@ -48,6 +48,12 @@ npm test
 
 # Run tests with UI
 npm run test:ui
+
+# Lint code
+npm run lint
+
+# Type checking
+npm run typecheck
 ```
 
 ## Core Algorithm
@@ -64,6 +70,7 @@ The reuse solver (`src/utils/solver.js`) implements a SAT (Boolean satisfiabilit
 - Cannons need 625cs after planting before first use
 - Cannons become unavailable 204cs before removal
 - Minimum 3475cs cooldown between consecutive fires from same cannon
+- Target columns for fire operations must be multiples of 1/80 (0.0125) for precise positioning
 
 ## File Structure
 
@@ -94,5 +101,16 @@ The project uses **Vitest** for unit testing:
 - Tests for all utility functions (getRoofFlyTime, preprocessOperations, etc.)
 - Edge case testing for complex scenarios with multiple cannons and constraints
 - Tests verify SAT solving correctness and constraint handling
+- Input validation tests for all form fields and data constraints
 
 Run tests with `npm test` or use the UI with `npm run test:ui`.
+
+## Quality Assurance
+
+The project includes comprehensive input validation:
+- Target column precision validation (1/80 multiples for fire operations)
+- Time expression validation with variable support
+- Cannon position constraints
+- Operation type validation
+
+All changes should pass linting (`npm run lint`) and type checking (`npm run typecheck`) before committing.

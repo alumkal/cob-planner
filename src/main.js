@@ -13,7 +13,10 @@ const store = createStore({
       theme: localStorage.getItem('theme') || 'light',
       rows: parseInt(localStorage.getItem('rows') || '5'),
       cannons: JSON.parse(localStorage.getItem('cannons') || '[]'),
-      waves: JSON.parse(localStorage.getItem('waves') || '[]'),
+      waves: JSON.parse(localStorage.getItem('waves') || '[]').map(wave => ({
+        ...wave,
+        notes: wave.notes || ''
+      })),
     };
   },
   mutations: {
@@ -48,6 +51,7 @@ const store = createStore({
     addWave(state) {
       state.waves.push({
         duration: 601,
+        notes: '',
         operations: []
       });
       localStorage.setItem('waves', JSON.stringify(state.waves));
@@ -75,7 +79,12 @@ const store = createStore({
     importData(state, data) {
       if (data.rows) state.rows = data.rows;
       if (data.cannons) state.cannons = data.cannons;
-      if (data.waves) state.waves = data.waves;
+      if (data.waves) {
+        state.waves = data.waves.map(wave => ({
+          ...wave,
+          notes: wave.notes || ''
+        }));
+      }
       
       localStorage.setItem('rows', state.rows);
       localStorage.setItem('cannons', JSON.stringify(state.cannons));
