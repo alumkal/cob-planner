@@ -271,15 +271,38 @@ export function solveReuse(cannons, waves) {
 
   // Map results back to the original operations
   const mappedResults = operations.map((op, index) => {
-    if (index < result.successCount) {
+    if (op.type === 'fire') {
+      // For fire operations, check if there's a successful fire result
       const fireResult = result.fireResults.find(r => r.opIndex === op.originalIndex);
       return {
         ...op,
-        success: true,
+        success: !!fireResult,
         cannonRow: fireResult ? fireResult.cannonRow : null,
         cannonCol: fireResult ? fireResult.cannonCol : null
       };
+    } else if (op.type === 'plant') {
+      // Plant operations are always successful (you can always plant a cannon)
+      return {
+        ...op,
+        success: true
+      };
+    } else if (op.type === 'remove') {
+      // Remove operations are successful if the cannon exists at that position
+      // Check if there's a cannon at the specified position in the original cannons list
+      // or if it was planted earlier in this same operation sequence
+      const cannonExists = cannons.some(c => c.row === op.row && c.col === op.targetCol) ||
+        operations.some(otherOp => 
+          otherOp.type === 'plant' && 
+          otherOp.row === op.row && 
+          otherOp.targetCol === op.targetCol &&
+          otherOp.absoluteTime < op.absoluteTime
+        );
+      return {
+        ...op,
+        success: cannonExists
+      };
     } else {
+      // Unknown operation type
       return {
         ...op,
         success: false
@@ -308,7 +331,7 @@ export function solveReuse(cannons, waves) {
 
   return {
     operations: mappedResults,
-    successCount: result.successCount,
+    successCount: mappedResults.filter(op => op.type === 'fire' && op.success).length,
     nextAvailable
   };
 }
