@@ -23,9 +23,11 @@
                     <input
                       type="number"
                       class="form-control form-control-sm"
+                      :class="{ 'is-invalid': getWaveDurationError(waveIndex) }"
                       v-model.number="wave.duration"
                       min="1"
                       @change="updateWave(waveIndex)"
+                      :title="getWaveDurationError(waveIndex) || ''"
                     />
                   </div>
                 </div>
@@ -50,9 +52,11 @@
                     <input
                       type="text"
                       class="form-control form-control-sm flex-grow-1"
+                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'time') }"
                       v-model="op.time"
                       @change="updateOperation(waveIndex, opIndex)"
                       placeholder="300, w-200"
+                      :title="getValidationError(waveIndex, opIndex, 'time') || ''"
                     />
                     <button
                       class="btn btn-sm btn-danger delete-btn"
@@ -78,9 +82,11 @@
                       v-if="op.type === 'fire'"
                       type="text"
                       class="form-control form-control-sm flex-grow-1"
+                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'columns') }"
                       v-model="op.columns"
                       placeholder="1-5 7"
                       @change="updateOperation(waveIndex, opIndex)"
+                      :title="getValidationError(waveIndex, opIndex, 'columns') || ''"
                     />
                     <div v-else class="flex-grow-1"></div>
                   </div>
@@ -90,21 +96,25 @@
                     <input
                       type="number"
                       class="form-control form-control-sm"
+                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'row') }"
                       v-model.number="op.row"
                       min="1"
                       :max="rows"
                       @change="updateOperation(waveIndex, opIndex)"
                       placeholder="行"
+                      :title="getValidationError(waveIndex, opIndex, 'row') || ''"
                     />
                     <input
                       type="number"
                       class="form-control form-control-sm"
+                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'targetCol') }"
                       v-model.number="op.targetCol"
                       :min="op.type === 'fire' ? 0 : 1"
                       :max="op.type === 'fire' ? 9.9875 : 8"
                       :step="op.type === 'fire' ? 0.0001 : 1"
                       @change="updateOperation(waveIndex, opIndex)"
                       :placeholder="op.type === 'fire' ? '目标列' : '列'"
+                      :title="getValidationError(waveIndex, opIndex, 'targetCol') || ''"
                     />
                   </div>
                 </div>
@@ -197,8 +207,13 @@ export default {
         top: '0px',
         left: '0px',
         display: 'none'
-      }
+      },
+      validationErrors: new Map()
     };
+  },
+  mounted() {
+    // Perform initial validation
+    this.validateAllInputs();
   },
   computed: {
     rows() {
@@ -228,6 +243,7 @@ export default {
       this.calculationResult = null;
     },
     updateWave(index) {
+      this.validateWave(index);
       this.$store.commit('updateWave', {
         index,
         wave: this.waves[index]
@@ -245,12 +261,19 @@ export default {
 
       this.$store.commit('addOperation', { waveIndex, operation });
       this.calculationResult = null;
+      
+      // Validate the new operation
+      this.$nextTick(() => {
+        const opIndex = this.waves[waveIndex].operations.length - 1;
+        this.validateOperation(waveIndex, opIndex);
+      });
     },
     removeOperation(waveIndex, opIndex) {
       this.$store.commit('removeOperation', { waveIndex, opIndex });
       this.calculationResult = null;
     },
     updateOperation(waveIndex, opIndex) {
+      this.validateOperation(waveIndex, opIndex);
       this.$store.commit('updateOperation', {
         waveIndex,
         opIndex,
@@ -259,6 +282,12 @@ export default {
       this.calculationResult = null;
     },
     calculate() {
+      // Validate all inputs before calculation
+      if (!this.validateAllInputs()) {
+        alert('输入数据存在错误，请检查标记为红色的输入框');
+        return;
+      }
+      
       // Flatten all operations
       const allOperations = [];
       this.waves.forEach((wave, waveIndex) => {
@@ -360,6 +389,254 @@ export default {
       this.prevOp = null;
       this.nextOp = null;
       this.tooltipStyle.display = 'none';
+    },
+    validateTime(timeStr) {
+      if (!timeStr || timeStr.trim() === '') {
+        return '时间不能为空';
+      }
+      
+      const trimmed = timeStr.trim();
+      
+      // Check for variable expressions like "w-200", "w+100", etc.
+      const variablePattern = /^w([+-]\d+)?$/;
+      if (variablePattern.test(trimmed)) {
+        const match = trimmed.match(/^w([+-]\d+)?$/);
+        if (match[1]) {
+          const offset = parseInt(match[1]);
+          if (!Number.isInteger(offset)) {
+            return '变量表达式中的偏移量必须是整数';
+          }
+        }
+        return null;
+      }
+      
+      // Check for direct integer
+      const num = parseInt(trimmed);
+      if (!Number.isInteger(num) || num.toString() !== trimmed) {
+        return '时间必须是整数或变量表达式（如 w-200）';
+      }
+      
+      if (num < 0) {
+        return '时间不能为负数';
+      }
+      
+      return null;
+    },
+    validateRow(row, type) {
+      if (row === null || row === undefined || row === '') {
+        return '行数不能为空';
+      }
+      
+      if (!Number.isInteger(row)) {
+        return '行数必须是整数';
+      }
+      
+      if (row < 1 || row > this.rows) {
+        return `行数必须在 1-${this.rows} 范围内`;
+      }
+      
+      return null;
+    },
+    validateTargetCol(targetCol, type) {
+      if (targetCol === null || targetCol === undefined || targetCol === '') {
+        return '列数不能为空';
+      }
+      
+      if (type === 'fire') {
+        if (typeof targetCol !== 'number') {
+          return '目标列必须是数字';
+        }
+        if (targetCol < 0 || targetCol > 9.9875) {
+          return '目标列必须在 0-9.9875 范围内';
+        }
+      } else {
+        if (!Number.isInteger(targetCol)) {
+          return '列数必须是整数';
+        }
+        if (targetCol < 1 || targetCol > 8) {
+          return '列数必须在 1-8 范围内';
+        }
+      }
+      
+      return null;
+    },
+    validateColumns(columnsStr) {
+      if (!columnsStr || columnsStr.trim() === '') {
+        return '发射列不能为空';
+      }
+      
+      const trimmed = columnsStr.trim();
+      
+      // Parse column ranges and individual columns
+      const parts = trimmed.split(/\s+/);
+      
+      for (const part of parts) {
+        if (part.includes('-')) {
+          // Range format like "1-5"
+          const [start, end] = part.split('-');
+          const startNum = parseInt(start);
+          const endNum = parseInt(end);
+          
+          if (!Number.isInteger(startNum) || !Number.isInteger(endNum) || 
+              startNum.toString() !== start || endNum.toString() !== end) {
+            return '列范围必须是整数';
+          }
+          
+          if (startNum < 1 || startNum > 8 || endNum < 1 || endNum > 8) {
+            return '列范围必须在 1-8 范围内';
+          }
+          
+          if (startNum > endNum) {
+            return '列范围起始列不能大于结束列';
+          }
+        } else {
+          // Individual column
+          const num = parseInt(part);
+          if (!Number.isInteger(num) || num.toString() !== part) {
+            return '列数必须是整数';
+          }
+          
+          if (num < 1 || num > 8) {
+            return '列数必须在 1-8 范围内';
+          }
+        }
+      }
+      
+      return null;
+    },
+    validateCannonPosition(row, targetCol, type) {
+      if (type === 'remove') {
+        // Check if cannon exists at this position
+        const cannonExists = this.cannons.some(c => c.row === row && c.col === targetCol);
+        if (!cannonExists) {
+          return '该位置没有炮可以铲除';
+        }
+      } else if (type === 'plant') {
+        // Check if position is already occupied
+        const cannonExists = this.cannons.some(c => c.row === row && c.col === targetCol);
+        if (cannonExists) {
+          return '该位置已有炮，不能重复种植';
+        }
+      }
+      
+      return null;
+    },
+    validateWaveDuration(duration) {
+      if (duration === null || duration === undefined || duration === '') {
+        return '波长不能为空';
+      }
+      
+      if (!Number.isInteger(duration)) {
+        return '波长必须是整数';
+      }
+      
+      if (duration < 1) {
+        return '波长必须大于 0';
+      }
+      
+      return null;
+    },
+    getValidationError(waveIndex, opIndex, field) {
+      const key = `${waveIndex}-${opIndex}-${field}`;
+      return this.validationErrors.get(key) || null;
+    },
+    getWaveDurationError(waveIndex) {
+      const key = `wave-${waveIndex}-duration`;
+      return this.validationErrors.get(key) || null;
+    },
+    validateOperation(waveIndex, opIndex) {
+      const op = this.waves[waveIndex].operations[opIndex];
+      const errors = new Map();
+      
+      // Validate time
+      const timeError = this.validateTime(op.time);
+      if (timeError) {
+        errors.set(`${waveIndex}-${opIndex}-time`, timeError);
+      }
+      
+      // Validate row
+      const rowError = this.validateRow(op.row, op.type);
+      if (rowError) {
+        errors.set(`${waveIndex}-${opIndex}-row`, rowError);
+      }
+      
+      // Validate target column
+      const targetColError = this.validateTargetCol(op.targetCol, op.type);
+      if (targetColError) {
+        errors.set(`${waveIndex}-${opIndex}-targetCol`, targetColError);
+      }
+      
+      // Validate columns for fire operations
+      if (op.type === 'fire') {
+        const columnsError = this.validateColumns(op.columns);
+        if (columnsError) {
+          errors.set(`${waveIndex}-${opIndex}-columns`, columnsError);
+        }
+      }
+      
+      // Validate cannon position for plant/remove operations
+      if (op.type === 'plant' || op.type === 'remove') {
+        const cannonError = this.validateCannonPosition(op.row, op.targetCol, op.type);
+        if (cannonError) {
+          errors.set(`${waveIndex}-${opIndex}-targetCol`, cannonError);
+        }
+      }
+      
+      // Update validation errors
+      errors.forEach((error, key) => {
+        this.validationErrors.set(key, error);
+      });
+      
+      // Clear errors that are no longer present
+      const fieldsToCheck = ['time', 'row', 'targetCol', 'columns'];
+      fieldsToCheck.forEach(field => {
+        const key = `${waveIndex}-${opIndex}-${field}`;
+        if (!errors.has(key)) {
+          this.validationErrors.delete(key);
+        }
+      });
+    },
+    validateWave(waveIndex) {
+      const wave = this.waves[waveIndex];
+      const key = `wave-${waveIndex}-duration`;
+      
+      const durationError = this.validateWaveDuration(wave.duration);
+      if (durationError) {
+        this.validationErrors.set(key, durationError);
+      } else {
+        this.validationErrors.delete(key);
+      }
+    },
+    validateAllInputs() {
+      this.validationErrors.clear();
+      
+      // Validate all waves
+      this.waves.forEach((wave, waveIndex) => {
+        this.validateWave(waveIndex);
+        
+        // Validate all operations in this wave
+        wave.operations.forEach((op, opIndex) => {
+          this.validateOperation(waveIndex, opIndex);
+        });
+      });
+      
+      return this.validationErrors.size === 0;
+    },
+    hasValidationErrors() {
+      return this.validationErrors.size > 0;
+    }
+  },
+  watch: {
+    // Re-validate when cannons change (affects plant/remove validation)
+    cannons: {
+      handler() {
+        this.validateAllInputs();
+      },
+      deep: true
+    },
+    // Re-validate when rows change (affects row validation)
+    rows() {
+      this.validateAllInputs();
     }
   }
 }
@@ -663,6 +940,24 @@ export default {
 .add-operation-btn-floating.dark-theme:focus .add-icon::after {
   background: #20c997;
   box-shadow: 0 0 4px rgba(32, 201, 151, 0.5);
+}
+
+/* Validation error styles */
+.form-control.is-invalid, .form-select.is-invalid {
+  border-color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.1);
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.dark .form-control.is-invalid, .dark .form-select.is-invalid {
+  border-color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.2);
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.form-control.is-invalid:focus, .form-select.is-invalid:focus {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
 }
 
 /* Responsive adjustments */
