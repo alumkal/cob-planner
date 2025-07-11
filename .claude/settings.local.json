@@ -9,6 +9,9 @@
       "Bash(timeout 8s npm run dev)",
       "Bash(npm run dev:*)",
       "Bash(rg:*)",
+      "Bash(git add:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm test:*)",
       "Bash(git add:*)"
     ],
     "deny": []
