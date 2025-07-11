@@ -6,7 +6,9 @@
       "Bash(node:*)",
       "Bash(timeout 10s npm run dev)",
       "Bash(true)",
-      "Bash(timeout 8s npm run dev)"
+      "Bash(timeout 8s npm run dev)",
+      "Bash(git checkout:*)",
+      "Bash(npm test:*)"
     ],
     "deny": []
   }

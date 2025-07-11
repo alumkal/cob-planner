@@ -133,8 +133,15 @@
 
     <!-- Results section -->
     <div v-if="calculationResult && calculationResult.successCount > 0" class="card mb-4">
-      <div class="card-header">
+      <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">计算结果</h5>
+        <button 
+          v-if="calculationResult.successCount === totalOperations"
+          class="btn btn-success btn-sm"
+          @click="showExportDialog = true"
+        >
+          导出
+        </button>
       </div>
       <div class="card-body">
         <p>
@@ -179,20 +186,34 @@
         <p v-if="nextOp"><strong>下次使用:</strong> 波次 {{ nextOp.waveIndex + 1 }}, 时间 {{ nextOp.time }}</p>
       </div>
     </div>
+
+    <!-- Export Dialog -->
+    <ExportDialog
+      :isVisible="showExportDialog"
+      :calculationResult="calculationResult"
+      :waves="waves"
+      :theme="theme"
+      @close="showExportDialog = false"
+    />
   </div>
 </template>
 
 <script>
 import { solveReuse } from '../utils/solver.js';
+import ExportDialog from './ExportDialog.vue';
 
 export default {
   name: 'ReusePage',
+  components: {
+    ExportDialog
+  },
   data() {
     return {
       calculationResult: null,
       highlightedOp: null,
       prevOp: null,
       nextOp: null,
+      showExportDialog: false,
       tooltipStyle: {
         top: '0px',
         left: '0px',
