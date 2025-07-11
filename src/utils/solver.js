@@ -108,7 +108,7 @@ export function solveCobReuse(initialCannons, operations) {
       // Add a new cannon
       const newCannon = {
         row: op.row,
-        col: op.col,
+        col: op.targetCol,
         available: false,
         plantTime: op.absoluteTime,
         lastUsed: -Infinity,
@@ -117,7 +117,7 @@ export function solveCobReuse(initialCannons, operations) {
       cannons.push(newCannon);
     } else if (op.type === 'remove') {
       // Find and mark the cannon as removed
-      const cannonIndex = cannons.findIndex(c => c.row === op.row && c.col === op.col);
+      const cannonIndex = cannons.findIndex(c => c.row === op.row && c.col === op.targetCol);
       if (cannonIndex !== -1) {
         cannons[cannonIndex].available = false;
         cannons[cannonIndex].removeTime = op.absoluteTime;

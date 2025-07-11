@@ -35,7 +35,7 @@ describe('preprocessOperations', () => {
     ];
 
     const result = preprocessOperations(waves);
-    
+
     expect(result.operations).toHaveLength(3);
     expect(result.operations[0].absoluteTime).toBe(300); // First wave, 300
     expect(result.operations[1].absoluteTime).toBe(501); // First wave, 601-100
@@ -114,7 +114,7 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(1);
     expect(result.fireResults).toHaveLength(1);
     expect(result.fireResults[0].cannonRow).toBe(1);
@@ -132,7 +132,7 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(2);
     expect(result.fireResults).toHaveLength(2);
   });
@@ -145,7 +145,7 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     // Should only succeed first operation due to cooldown
     expect(result.successCount).toBe(1);
   });
@@ -160,7 +160,7 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(1);
     expect(result.fireResults[0].cannonCol).toBe(3); // Should use cannon in column 3
   });
@@ -168,12 +168,12 @@ describe('solveCobReuse', () => {
   test('should handle plant operations', () => {
     const cannons = [];
     const operations = [
-      { type: 'plant', absoluteTime: 0, row: 1, col: 3, originalIndex: 0 },
+      { type: 'plant', absoluteTime: 0, row: 1, targetCol: 3, originalIndex: 0 },
       { type: 'fire', absoluteTime: 1000, targetCol: 9, columns: '1-5', originalIndex: 1 }
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(1);
     expect(result.fireResults[0].cannonRow).toBe(1);
     expect(result.fireResults[0].cannonCol).toBe(3);
@@ -182,13 +182,48 @@ describe('solveCobReuse', () => {
   test('should handle remove operations', () => {
     const cannons = [{ row: 1, col: 3 }];
     const operations = [
-      { type: 'remove', absoluteTime: 500, row: 1, col: 3, originalIndex: 0 },
+      { type: 'remove', absoluteTime: 500, row: 1, targetCol: 3, originalIndex: 0 },
       { type: 'fire', absoluteTime: 1000, targetCol: 9, columns: '1-5', originalIndex: 1 }
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(0); // Cannon removed before fire
+  });
+
+  test('should prevent shooting after cannon is removed using targetCol format', () => {
+    // Bug reproduction: "time 0: shovel 1-1; time 200: shoot to 1-9"
+    const cannons = [{ row: 1, col: 1 }];
+    const operations = [
+      { type: 'remove', absoluteTime: 0, row: 1, targetCol: 1, originalIndex: 0 }, // Remove cannon at 1-1
+      { type: 'fire', absoluteTime: 200, targetCol: 9, columns: '1-8', originalIndex: 1 } // Try to shoot
+    ];
+
+    const result = solveCobReuse(cannons, operations);
+
+    // Should fail because cannon at 1-1 was removed at time 0
+    expect(result.successCount).toBe(0);
+  });
+
+  test('should prevent shooting with exact scenario from user report', () => {
+    // Exact user scenario: "time 0: shovel 1-1; time 200: shoot to 1-9"
+    // Test using the solveReuse function which mimics real usage
+    const cannons = [{ row: 1, col: 1 }];
+    const waves = [
+      {
+        duration: 601,
+        operations: [
+          { type: 'remove', time: '0', row: 1, targetCol: 1 },  // shovel 1-1 at time 0
+          { type: 'fire', time: '200', row: 1, targetCol: 9, columns: '1-8' } // shoot to 1-9 at time 200
+        ]
+      }
+    ];
+
+    const result = solveReuse(cannons, waves);
+
+    // Should fail - no successful operations since cannon was removed
+    expect(result.successCount).toBe(0);
+    expect(result.operations[1].success).toBe(false);
   });
 
   test('should calculate next available times correctly', () => {
@@ -198,7 +233,7 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.nextAvailableTimes).toHaveLength(1);
     expect(result.nextAvailableTimes[0].row).toBe(1);
     expect(result.nextAvailableTimes[0].col).toBe(3);
@@ -221,10 +256,10 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(4);
     expect(result.fireResults).toHaveLength(4);
-    
+
     // First three operations should use different cannons
     const usedCannons = new Set();
     for (let i = 0; i < 3; i++) {
@@ -242,7 +277,7 @@ describe('solveCobReuse', () => {
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(1); // Only first operation should succeed
     expect(result.fireResults).toHaveLength(1);
   });
@@ -250,14 +285,14 @@ describe('solveCobReuse', () => {
   test('should handle plant and remove operations correctly', () => {
     const cannons = [];
     const operations = [
-      { type: 'plant', absoluteTime: 0, row: 1, col: 3, originalIndex: 0 },
+      { type: 'plant', absoluteTime: 0, row: 1, targetCol: 3, originalIndex: 0 },
       { type: 'fire', absoluteTime: 1000, targetCol: 9, columns: '1-5', originalIndex: 1 },
-      { type: 'remove', absoluteTime: 2000, row: 1, col: 3, originalIndex: 2 },
+      { type: 'remove', absoluteTime: 2000, row: 1, targetCol: 3, originalIndex: 2 },
       { type: 'fire', absoluteTime: 3000, targetCol: 8, columns: '1-5', originalIndex: 3 } // Should fail, cannon removed
     ];
 
     const result = solveCobReuse(cannons, operations);
-    
+
     expect(result.successCount).toBe(1); // Only first fire should succeed
     expect(result.fireResults).toHaveLength(1);
     expect(result.fireResults[0].cannonRow).toBe(1);
@@ -282,7 +317,7 @@ describe('solveReuse', () => {
     ];
 
     const result = solveReuse(cannons, waves);
-    
+
     expect(result.operations).toHaveLength(2);
     expect(result.successCount).toBe(2);
     expect(result.operations[0].success).toBe(true);
@@ -301,7 +336,7 @@ describe('solveReuse', () => {
     ];
 
     const result = solveReuse(cannons, waves);
-    
+
     expect(result.operations[0].cannonRow).toBe(1);
     expect(result.operations[0].cannonCol).toBe(3);
     expect(result.operations[0].success).toBe(true);
@@ -319,12 +354,12 @@ describe('solveReuse', () => {
     ];
 
     const result = solveReuse(cannons, waves);
-    
+
     // Should duplicate the single cannon to reach 8 entries per spec
     expect(result.nextAvailable).toHaveLength(8);
     expect(result.nextAvailable[0].position).toBe('1-3');
     expect(typeof result.nextAvailable[0].time).toBe('number');
-    
+
     // Check that times are increasing (sorted)
     for (let i = 1; i < result.nextAvailable.length; i++) {
       expect(result.nextAvailable[i].time).toBeGreaterThanOrEqual(result.nextAvailable[i-1].time);
@@ -349,22 +384,22 @@ describe('solveReuse', () => {
     ];
 
     const result = solveReuse(cannons, waves);
-    
+
     // Should have 8 entries (3 original + 5 duplicated)
     expect(result.nextAvailable).toHaveLength(8);
-    
+
     // Check that all 3 cannon positions appear in the list
     const positions = result.nextAvailable.map(c => c.position);
     expect(positions).toContain('1-3');
     expect(positions).toContain('2-5');
     expect(positions).toContain('3-7');
-    
+
     // Count occurrences of each position (should cycle through cannons)
     const positionCounts = {};
     positions.forEach(pos => {
       positionCounts[pos] = (positionCounts[pos] || 0) + 1;
     });
-    
+
     // With 3 cannons filling 8 slots: 3*2 = 6, then 2 more
     // So distribution should be fairly even
     expect(positionCounts['1-3']).toBeGreaterThanOrEqual(2);
