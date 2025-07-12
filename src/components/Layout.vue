@@ -45,8 +45,8 @@ export default {
     toggleTheme() {
       this.$store.dispatch('ui/toggleTheme');
     },
-    saveData() {
-      const data = this.$store.dispatch('exportData');
+    async saveData() {
+      const data = await this.$store.dispatch('exportData');
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);

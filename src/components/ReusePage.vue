@@ -473,7 +473,7 @@ export default {
   border-top: none;
   border-radius: 0 0 8px 8px;
   min-height: 90px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .dark .operations-grid {
@@ -487,7 +487,6 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 90px;
 }
 
 /* Floating Add Operation Button */
