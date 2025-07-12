@@ -19,51 +19,190 @@ export const createTestStore = (configName = 'basic', overrides = {}) => {
   }
 
   return createStore({
-    state() {
-      return {
-        ...config,
-        ...overrides
-      };
-    },
-    mutations: {
-      setTheme(state, theme) {
-        state.theme = theme;
+    modules: {
+      ui: {
+        namespaced: true,
+        state: () => ({
+          theme: config.theme || 'light',
+          ...overrides.ui
+        }),
+        getters: {
+          theme: (state) => state.theme,
+          isDarkTheme: (state) => state.theme === 'dark'
+        },
+        mutations: {
+          SET_THEME(state, theme) {
+            state.theme = theme;
+          },
+          TOGGLE_THEME(state) {
+            state.theme = state.theme === 'light' ? 'dark' : 'light';
+          }
+        },
+        actions: {
+          setTheme({ commit }, theme) {
+            commit('SET_THEME', theme);
+          },
+          toggleTheme({ commit }) {
+            commit('TOGGLE_THEME');
+          }
+        }
       },
-      setRows(state, rows) {
-        state.rows = rows;
+      field: {
+        namespaced: true,
+        state: () => ({
+          fieldName: config.fieldName || '',
+          rows: config.rows || 5,
+          cannons: config.cannons || [],
+          ...overrides.field
+        }),
+        getters: {
+          fieldName: (state) => state.fieldName,
+          rows: (state) => state.rows,
+          cannons: (state) => state.cannons,
+          cannonCount: (state) => state.cannons.length,
+          hasCannons: (state) => state.cannons.length > 0,
+          getCannonAt: (state) => (row, col) => {
+            return state.cannons.find(c => c.row === row && c.col === col);
+          },
+          hasCannonAt: (state) => (row, col) => {
+            return state.cannons.some(c => 
+              c.row === row && (c.col === col || c.col === col - 1)
+            );
+          }
+        },
+        mutations: {
+          SET_FIELD_NAME(state, fieldName) {
+            state.fieldName = fieldName;
+          },
+          SET_ROWS(state, rows) {
+            state.rows = rows;
+          },
+          SET_CANNONS(state, cannons) {
+            state.cannons = cannons;
+          },
+          ADD_CANNON(state, { row, col }) {
+            const exists = state.cannons.some(c => c.row === row && c.col === col);
+            if (!exists) {
+              state.cannons.push({ row, col });
+            }
+          },
+          REMOVE_CANNON(state, { row, col }) {
+            state.cannons = state.cannons.filter(c => !(c.row === row && c.col === col));
+          }
+        },
+        actions: {
+          setFieldName({ commit }, fieldName) {
+            commit('SET_FIELD_NAME', fieldName);
+          },
+          setRows({ commit }, rows) {
+            commit('SET_ROWS', rows);
+          },
+          setCannons({ commit }, cannons) {
+            commit('SET_CANNONS', cannons);
+          },
+          addCannon({ commit }, cannon) {
+            commit('ADD_CANNON', cannon);
+          },
+          removeCannon({ commit }, cannon) {
+            commit('REMOVE_CANNON', cannon);
+          }
+        }
       },
-      addCannon(state, cannon) {
-        state.cannons.push(cannon);
-      },
-      removeCannon(state, index) {
-        state.cannons.splice(index, 1);
-      },
-      updateCannon(state, { index, cannon }) {
-        state.cannons[index] = cannon;
-      },
-      addWave(state, wave) {
-        state.waves.push(wave);
-      },
-      removeWave(state, index) {
-        state.waves.splice(index, 1);
-      },
-      updateWave(state, { index, wave }) {
-        state.waves[index] = wave;
-      },
-      addOperation(state, { waveIndex, operation }) {
-        state.waves[waveIndex].operations.push(operation);
-      },
-      removeOperation(state, { waveIndex, opIndex }) {
-        state.waves[waveIndex].operations.splice(opIndex, 1);
-      },
-      updateOperation(state, { waveIndex, opIndex, operation }) {
-        state.waves[waveIndex].operations[opIndex] = operation;
+      waves: {
+        namespaced: true,
+        state: () => ({
+          waves: config.waves || [],
+          ...overrides.waves
+        }),
+        getters: {
+          waves: (state) => state.waves,
+          waveCount: (state) => state.waves.length,
+          hasWaves: (state) => state.waves.length > 0,
+          totalOperations: (state) => {
+            return state.waves.reduce((total, wave) => {
+              return total + wave.operations.filter(op => op.type === 'fire').length;
+            }, 0);
+          }
+        },
+        mutations: {
+          SET_WAVES(state, waves) {
+            state.waves = waves;
+          },
+          ADD_WAVE(state) {
+            state.waves.push({
+              duration: 601,
+              notes: '',
+              operations: []
+            });
+          },
+          REMOVE_WAVE(state, index) {
+            state.waves.splice(index, 1);
+          },
+          UPDATE_WAVE(state, { index, wave }) {
+            if (state.waves[index]) {
+              state.waves[index] = { ...wave };
+            }
+          },
+          ADD_OPERATION(state, { waveIndex, operation }) {
+            if (state.waves[waveIndex]) {
+              state.waves[waveIndex].operations.push(operation);
+            }
+          },
+          REMOVE_OPERATION(state, { waveIndex, opIndex }) {
+            if (state.waves[waveIndex] && state.waves[waveIndex].operations[opIndex]) {
+              state.waves[waveIndex].operations.splice(opIndex, 1);
+            }
+          },
+          UPDATE_OPERATION(state, { waveIndex, opIndex, operation }) {
+            if (state.waves[waveIndex] && state.waves[waveIndex].operations[opIndex]) {
+              state.waves[waveIndex].operations[opIndex] = { ...operation };
+            }
+          }
+        },
+        actions: {
+          setWaves({ commit }, waves) {
+            commit('SET_WAVES', waves);
+          },
+          addWave({ commit }) {
+            commit('ADD_WAVE');
+          },
+          removeWave({ commit }, index) {
+            commit('REMOVE_WAVE', index);
+          },
+          updateWave({ commit }, payload) {
+            commit('UPDATE_WAVE', payload);
+          },
+          addOperation({ commit }, payload) {
+            commit('ADD_OPERATION', payload);
+          },
+          removeOperation({ commit }, payload) {
+            commit('REMOVE_OPERATION', payload);
+          },
+          updateOperation({ commit }, payload) {
+            commit('UPDATE_OPERATION', payload);
+          }
+        }
       }
     },
     getters: {
-      totalCannons: (state) => state.cannons.length,
-      totalWaves: (state) => state.waves.length,
-      totalOperations: (state) => state.waves.reduce((total, wave) => total + wave.operations.length, 0)
+      theme: (state, getters) => getters['ui/theme'],
+      isDarkTheme: (state, getters) => getters['ui/isDarkTheme']
+    },
+    actions: {
+      importData({ dispatch }, data) {
+        if (data.fieldName !== undefined) {
+          dispatch('field/setFieldName', data.fieldName);
+        }
+        if (data.rows !== undefined) {
+          dispatch('field/setRows', data.rows);
+        }
+        if (data.cannons !== undefined) {
+          dispatch('field/setCannons', data.cannons);
+        }
+        if (data.waves !== undefined) {
+          dispatch('waves/setWaves', data.waves);
+        }
+      }
     }
   });
 };
@@ -77,9 +216,20 @@ export const createTestStore = (configName = 'basic', overrides = {}) => {
 export const mountWithStore = (component, options = {}) => {
   const store = options.store || createTestStore();
   
+  // Default stubs for extracted components
+  const defaultStubs = {
+    ExportDialog: true,
+    WaveHeader: true,
+    OperationCard: true
+  };
+  
   return mount(component, {
     global: {
       plugins: [store],
+      stubs: {
+        ...defaultStubs,
+        ...(options.global?.stubs || {})
+      },
       ...options.global
     },
     ...options
