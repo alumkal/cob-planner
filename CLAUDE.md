@@ -48,12 +48,6 @@ npm test
 
 # Run tests with UI
 npm run test:ui
-
-# Lint code
-npm run lint
-
-# Type checking
-npm run typecheck
 ```
 
 ## Core Algorithm

@@ -106,8 +106,9 @@ describe('ReusePage Validation', () => {
     test('should reject empty or invalid times', () => {
       expect(validateTime('')).toContain('时间不能为空');
       expect(validateTime('   ')).toContain('时间不能为空');
-      expect(validateTime('abc')).toContain('时间必须是整数或变量表达式');
-      expect(validateTime('300.5')).toContain('时间必须是整数或变量表达式');
+      expect(validateTime('abc')).toContain('时间表达式语法错误');
+      // Note: 300.5 is now valid as it returns a finite number
+      expect(validateTime('300.5')).toBeNull();
     });
 
     test('should allow negative times if absolute time >= -600', () => {
@@ -124,9 +125,22 @@ describe('ReusePage Validation', () => {
     });
 
     test('should reject invalid variable expressions', () => {
-      expect(validateTime('w-')).toContain('时间必须是整数或变量表达式');
-      expect(validateTime('w-abc')).toContain('时间必须是整数或变量表达式');
-      expect(validateTime('x-200')).toContain('时间必须是整数或变量表达式');
+      expect(validateTime('w-')).toContain('时间表达式语法错误');
+      expect(validateTime('w-abc')).toContain('时间表达式语法错误');
+      expect(validateTime('x-200')).toContain('时间表达式语法错误');
+    });
+
+    test('should accept complex mathematical expressions', () => {
+      expect(validateTime('w*2')).toBeNull();
+      expect(validateTime('w/2')).toBeNull();
+      expect(validateTime('w+100-50')).toBeNull();
+      expect(validateTime('(w+100)/2')).toBeNull();
+    });
+
+    test('should reject expressions that return non-finite values', () => {
+      expect(validateTime('w/0')).toContain('时间表达式必须返回有限数值');
+      expect(validateTime('Infinity')).toContain('时间表达式必须返回有限数值');
+      expect(validateTime('NaN')).toContain('时间表达式必须返回有限数值');
     });
 
     test('should validate variable expressions with absolute time constraint', () => {

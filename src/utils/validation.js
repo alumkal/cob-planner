@@ -4,7 +4,7 @@
  */
 
 /**
- * Validate time expression (supports direct integers and variable expressions like "w-200")
+ * Validate time expression (supports JavaScript expressions with 'w' variable)
  * @param {string} timeStr - The time expression to validate
  * @param {number|null} waveIndex - Wave index for absolute time validation (optional)
  * @param {Array} waves - Array of waves for absolute time calculation (optional)
@@ -17,43 +17,31 @@ export function validateTime(timeStr, waveIndex = null, waves = []) {
   
   const trimmed = timeStr.trim();
   
-  // Check for variable expressions like "w-200", "w+100", etc.
-  const variablePattern = /^w([+-]\d+)?$/;
-  if (variablePattern.test(trimmed)) {
-    const match = trimmed.match(/^w([+-]\d+)?$/);
-    if (match[1]) {
-      const offset = parseInt(match[1]);
-      if (!Number.isInteger(offset)) {
-        return '变量表达式中的偏移量必须是整数';
-      }
-      
-      // Check absolute time if wave context is available
-      if (waveIndex !== null && waveIndex < waves.length) {
-        const wave = waves[waveIndex];
-        const absoluteTime = calculateAbsoluteTime(waveIndex, wave.duration + offset, waves);
-        if (absoluteTime < -600) {
-          return '绝对时间不能小于-600';
-        }
+  // Try to parse the time expression using the same logic as the actual parser
+  try {
+    // Test with a dummy wave duration to see if the expression is valid
+    const testWaveDuration = 1000;
+    const result = Math.floor(Function("w", `return ${trimmed}`)(testWaveDuration));
+    
+    // Check if result is a finite number
+    if (!Number.isFinite(result)) {
+      return '时间表达式必须返回有限数值';
+    }
+    
+    // Check absolute time if wave context is available
+    if (waveIndex !== null && waveIndex < waves.length) {
+      const wave = waves[waveIndex];
+      const actualResult = Math.floor(Function("w", `return ${trimmed}`)(wave.duration));
+      const absoluteTime = calculateAbsoluteTime(waveIndex, actualResult, waves);
+      if (absoluteTime < -600) {
+        return '绝对时间不能小于-600';
       }
     }
+    
     return null;
+  } catch (e) {
+    return '时间表达式语法错误，支持数字和w变量（如: w-200, w+100, w/2）';
   }
-  
-  // Check for direct integer
-  const num = parseInt(trimmed);
-  if (!Number.isInteger(num) || num.toString() !== trimmed) {
-    return '时间必须是整数或变量表达式（如 w-200）';
-  }
-  
-  // Check absolute time if wave context is available
-  if (waveIndex !== null && waveIndex < waves.length) {
-    const absoluteTime = calculateAbsoluteTime(waveIndex, num, waves);
-    if (absoluteTime < -600) {
-      return '绝对时间不能小于-600';
-    }
-  }
-  
-  return null;
 }
 
 /**
@@ -333,8 +321,7 @@ export function getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex, wave
         // Parse the time expression
         let time;
         try {
-          const timeExpr = op.time.toString().replace(/w/g, wave.duration);
-          time = Math.floor(Function(`return ${timeExpr}`)());
+          time = Math.floor(Function("w", `return ${op.time}`)(wave.duration));
         } catch (e) {
           time = 0;
         }
