@@ -10,6 +10,11 @@ const Logic = {
 
 // Calculate the fly time for a cob cannon
 export function getRoofFlyTime(cobCol, dropCol) {
+  // Validate cannon column range
+  if (cobCol < 1 || cobCol > 8) {
+    throw new Error(`Invalid cannon column: ${cobCol}. Must be between 1 and 8.`);
+  }
+
   const flyTimeData = [
     { minDropX: 515, minFlyTime: 359 },
     { minDropX: 499, minFlyTime: 362 },
@@ -41,6 +46,11 @@ export function preprocessOperations(waves) {
   let operations = [];
 
   waves.forEach((wave, waveIndex) => {
+    // Check if operations exist and is an array
+    if (!wave.operations || !Array.isArray(wave.operations)) {
+      return; // Skip this wave if no valid operations
+    }
+    
     wave.operations.forEach((op, opIndex) => {
       // Parse the time expression
       let time;
@@ -49,6 +59,11 @@ export function preprocessOperations(waves) {
         const timeExpr = op.time.toString().replace(/w/g, wave.duration);
         // Evaluate the expression
         time = Math.floor(Function(`return ${timeExpr}`)());
+        
+        // Validate the result is a finite number
+        if (!isFinite(time)) {
+          time = 0;
+        }
       } catch (e) {
         time = 0;
       }
@@ -79,13 +94,20 @@ export function isColumnInSet(col, columnSet) {
   if (!columnSet) return true;
 
   // Parse the column set (e.g., "1-5 7" => columns 1,2,3,4,5,7)
-  const parts = columnSet.split(' ');
+  const parts = columnSet.split(' ').filter(part => part.trim() !== '');
   for (const part of parts) {
-    if (part.includes('-')) {
-      const [start, end] = part.split('-').map(Number);
+    const trimmedPart = part.trim();
+    if (trimmedPart.includes('-')) {
+      const rangeParts = trimmedPart.split('-');
+      if (rangeParts.length !== 2 || rangeParts[0] === '' || rangeParts[1] === '') continue; // Skip invalid ranges
+      
+      const [start, end] = rangeParts.map(Number);
+      if (isNaN(start) || isNaN(end)) continue; // Skip non-numeric ranges
+      
       if (col >= start && col <= end) return true;
     } else {
-      if (col === parseInt(part)) return true;
+      const num = parseInt(trimmedPart);
+      if (!isNaN(num) && col === num) return true;
     }
   }
 
@@ -127,92 +149,107 @@ export function solveCobReuse(initialCannons, operations) {
 
   // Extract only fire operations
   const fireOps = operations.filter(op => op.type === 'fire');
+  
+  if (fireOps.length === 0) {
+    return {
+      successCount: 0,
+      fireResults: [],
+      nextAvailableTimes: calculateNextAvailableTimes(cannons)
+    };
+  }
 
-  // Try to solve incrementally
+  // Build the complete SAT problem with ALL variables and time constraints
+  const solver = new Solver();
+  const cannonVars = {};
+
+  // Generate variables for ALL fire operations
+  for (let i = 0; i < fireOps.length; i++) {
+    const op = fireOps[i];
+
+    // Find valid cannons for this fire operation
+    for (let j = 0; j < cannons.length; j++) {
+      const cannon = cannons[j];
+
+      // Calculate the fire time first
+      const fireTime = op.absoluteTime - getRoofFlyTime(cannon.col, op.targetCol);
+
+      // Check if cannon is valid for this operation based on fire time
+      const isValid = (
+        // Cannon must be in the required column set
+        isColumnInSet(cannon.col, op.columns) &&
+        // Cannon must be planted and available by fire time
+        (cannon.plantTime === undefined || cannon.plantTime + 625 <= fireTime) &&
+        // Cannon must not be removed or unavailable by fire time
+        (cannon.removeTime === undefined || cannon.removeTime - 204 > fireTime)
+      );
+
+      if (isValid) {
+        // Create a variable for this cannon-operation pair
+        const varName = `fire_${i}_${j}`;
+        cannonVars[varName] = { opIndex: i, cannonIndex: j, fireTime };
+      }
+    }
+  }
+
+  // Add ALL time constraints between operations
+  for (const varName1 in cannonVars) {
+    const { cannonIndex: ci1, fireTime: ft1 } = cannonVars[varName1];
+
+    for (const varName2 in cannonVars) {
+      if (varName1 !== varName2) {
+        const { cannonIndex: ci2, fireTime: ft2 } = cannonVars[varName2];
+
+        // If same cannon and fire times are too close, add constraint
+        if (ci1 === ci2 && Math.abs(ft1 - ft2) < 3475) {
+          solver.forbid(Logic.and(varName1, varName2));
+        }
+      }
+    }
+  }
+
+  // Incrementally add operation constraints
   const fireResults = [];
+  let successCount = 0;
+  let lastSolution = null;
 
-  for (let maxOps = 1; maxOps <= fireOps.length; maxOps++) {
-    const solver = new Solver();
-    const cannonVars = {};
+  for (let i = 0; i < fireOps.length; i++) {
+    // Find variables for this operation
+    const operationVars = Object.keys(cannonVars)
+      .filter(varName => cannonVars[varName].opIndex === i);
 
-    // Generate variables for the first maxOps operations
-    for (let i = 0; i < maxOps; i++) {
-      const op = fireOps[i];
-
-      // Find valid cannons for this fire operation
-      for (let j = 0; j < cannons.length; j++) {
-        const cannon = cannons[j];
-
-        // Check if cannon is valid for this operation
-        const isValid = (
-          // Cannon must be in the required column set
-          isColumnInSet(cannon.col, op.columns) &&
-          // Cannon must be planted and not removed at this time
-          (cannon.plantTime === undefined || cannon.plantTime + 625 <= op.absoluteTime) &&
-          (cannon.removeTime === undefined || cannon.removeTime - 204 > op.absoluteTime)
-        );
-
-        if (isValid) {
-          // Calculate the fire time
-          const fireTime = op.absoluteTime - getRoofFlyTime(cannon.col, op.targetCol);
-
-          // Create a variable for this cannon-operation pair
-          const varName = `fire_${i}_${j}`;
-          cannonVars[varName] = { opIndex: i, cannonIndex: j, fireTime };
-        }
-      }
-    }
-
-    // Add constraint: exactly one cannon must be used for each operation
-    for (let i = 0; i < maxOps; i++) {
-      const operationVars = Object.keys(cannonVars)
-        .filter(varName => cannonVars[varName].opIndex === i);
-
-      if (operationVars.length === 0) {
-        // No valid cannons for this operation, stop here
-        return {
-          successCount: fireResults.length,
-          fireResults,
-          nextAvailableTimes: calculateNextAvailableTimes(cannons)
-        };
-      }
-
-      // Add constraint: at least one cannon must be used for this operation
-      solver.require(Logic.or(...operationVars));
-    }
-
-    // Add time constraints between operations
-    for (const varName1 in cannonVars) {
-      const { cannonIndex: ci1, fireTime: ft1 } = cannonVars[varName1];
-
-      for (const varName2 in cannonVars) {
-        if (varName1 !== varName2) {
-          const { cannonIndex: ci2, fireTime: ft2 } = cannonVars[varName2];
-
-          // If same cannon and fire times are too close, add constraint
-          if (ci1 === ci2 && Math.abs(ft1 - ft2) < 3475) {
-            solver.forbid(Logic.and(varName1, varName2));
-          }
-        }
-      }
-    }
-
-    // Try to solve with the current constraints
-    const solution = solver.solve();
-
-    // If no solution, we've reached the maximum number of operations we can satisfy
-    if (!solution) {
+    if (operationVars.length === 0) {
+      // No valid cannons for this operation, stop here
       break;
     }
 
-    // Update fire results with the current solution
-    fireResults.length = 0; // Clear previous results
-    for (let i = 0; i < maxOps; i++) {
+    // Add this operation's constraint
+    const newConstraint = Logic.or(...operationVars);
+    solver.require(newConstraint);
+    
+    // Test if the problem is still satisfiable
+    const solution = solver.solve();
+    
+    if (!solution) {
+      // Adding this constraint made the problem unsatisfiable, stop here
+      break;
+    }
+
+    // Successfully added this operation
+    lastSolution = solution;
+    successCount++;
+  }
+
+  // Use the last successful solution
+  const finalSolution = lastSolution;
+  
+  if (finalSolution) {
+    // Extract fire results from the final solution
+    for (let i = 0; i < successCount; i++) {
       const op = fireOps[i];
       const operationVars = Object.keys(cannonVars)
         .filter(varName => cannonVars[varName].opIndex === i);
 
-      const usedVar = operationVars.find(varName => solution.evaluate(varName));
+      const usedVar = operationVars.find(varName => finalSolution.evaluate(varName));
       if (usedVar) {
         const { cannonIndex, fireTime } = cannonVars[usedVar];
 
