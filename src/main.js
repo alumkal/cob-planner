@@ -11,6 +11,7 @@ const store = createStore({
   state() {
     return {
       theme: localStorage.getItem('theme') || 'light',
+      fieldName: localStorage.getItem('fieldName') || '',
       rows: parseInt(localStorage.getItem('rows') || '5'),
       cannons: JSON.parse(localStorage.getItem('cannons') || '[]'),
       waves: JSON.parse(localStorage.getItem('waves') || '[]').map(wave => ({
@@ -23,6 +24,10 @@ const store = createStore({
     toggleTheme(state) {
       state.theme = state.theme === 'light' ? 'dark' : 'light';
       localStorage.setItem('theme', state.theme);
+    },
+    setFieldName(state, fieldName) {
+      state.fieldName = fieldName;
+      localStorage.setItem('fieldName', fieldName);
     },
     setRows(state, rows) {
       state.rows = rows;
@@ -77,6 +82,7 @@ const store = createStore({
       localStorage.setItem('waves', JSON.stringify(state.waves));
     },
     importData(state, data) {
+      if (data.fieldName) state.fieldName = data.fieldName;
       if (data.rows) state.rows = data.rows;
       if (data.cannons) state.cannons = data.cannons;
       if (data.waves) {
@@ -86,6 +92,7 @@ const store = createStore({
         }));
       }
       
+      localStorage.setItem('fieldName', state.fieldName);
       localStorage.setItem('rows', state.rows);
       localStorage.setItem('cannons', JSON.stringify(state.cannons));
       localStorage.setItem('waves', JSON.stringify(state.waves));

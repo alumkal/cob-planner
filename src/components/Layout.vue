@@ -47,6 +47,7 @@ export default {
     },
     saveData() {
       const data = {
+        fieldName: this.$store.state.fieldName,
         rows: this.$store.state.rows,
         cannons: this.$store.state.cannons,
         waves: this.$store.state.waves
@@ -57,7 +58,8 @@ export default {
       
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'cobplanner-data.json';
+      const fieldName = this.$store.state.fieldName?.trim();
+      a.download = fieldName ? `${fieldName}.json` : 'cobplanner-data.json';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

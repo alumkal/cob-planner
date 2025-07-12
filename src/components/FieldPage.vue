@@ -1,33 +1,47 @@
 <template>
   <div class="field-page">
     <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">布阵设置</h5>
-        <div class="d-flex align-items-center">
-          <label for="rowsInput" class="me-2">行数:</label>
-          <input 
-            type="number" 
-            id="rowsInput" 
-            class="form-control form-control-sm" 
-            style="width: 70px" 
-            v-model.number="rowsInput" 
-            min="1" 
-            max="10"
-            @change="updateRows"
-          />
+      <div class="card-header">
+        <h5 class="mb-3">布阵设置</h5>
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+          <div class="d-flex align-items-center">
+            <label for="fieldNameInput" class="me-2">名称:</label>
+            <input
+              type="text"
+              id="fieldNameInput"
+              class="form-control form-control-sm"
+              style="width: 200px"
+              v-model="fieldNameInput"
+              @input="updateFieldName"
+              placeholder="输入阵型名称"
+            />
+          </div>
+          <div class="d-flex align-items-center">
+            <label for="rowsInput" class="me-2">行数:</label>
+            <input
+              type="number"
+              id="rowsInput"
+              class="form-control form-control-sm"
+              style="width: 70px"
+              v-model.number="rowsInput"
+              min="1"
+              max="10"
+              @change="updateRows"
+            />
+          </div>
         </div>
       </div>
       <div class="card-body">
         <div class="field-container">
           <div class="field-grid" :style="{ gridTemplateRows: `repeat(${rows}, 80px)` }">
-            <div 
-              v-for="row in rows" 
-              :key="'row-' + row" 
+            <div
+              v-for="row in rows"
+              :key="'row-' + row"
               class="field-row"
             >
-              <div 
-                v-for="col in 9" 
-                :key="'cell-' + row + '-' + col" 
+              <div
+                v-for="col in 9"
+                :key="'cell-' + row + '-' + col"
                 class="field-cell"
                 :class="{ 'has-cannon': hasCannon(row, col) }"
                 @click="toggleCannon(row, col)"
@@ -39,37 +53,7 @@
         </div>
       </div>
     </div>
-    
-    <div class="card">
-      <div class="card-header">
-        <h5 class="mb-0">炮位列表</h5>
-      </div>
-      <div class="card-body">
-        <table class="table" :class="theme === 'dark' ? 'table-dark' : ''">
-          <thead>
-            <tr>
-              <th>行</th>
-              <th>列</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(cannon, index) in cannons" :key="'cannon-' + index">
-              <td>{{ cannon.row }}</td>
-              <td>{{ cannon.col }}</td>
-              <td>
-                <button class="btn btn-sm btn-danger" @click="removeCannon(cannon.row, cannon.col)">
-                  移除
-                </button>
-              </td>
-            </tr>
-            <tr v-if="cannons.length === 0">
-              <td colspan="3" class="text-center">还未放置任何炮</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+
   </div>
 </template>
 
@@ -78,7 +62,8 @@ export default {
   name: 'FieldPage',
   data() {
     return {
-      rowsInput: 5
+      rowsInput: 5,
+      fieldNameInput: ''
     };
   },
   computed: {
@@ -90,17 +75,21 @@ export default {
     },
     theme() {
       return this.$store.state.theme;
+    },
+    fieldName() {
+      return this.$store.state.fieldName;
     }
   },
   mounted() {
     this.rowsInput = this.rows;
+    this.fieldNameInput = this.fieldName;
   },
   methods: {
     updateRows() {
       const rows = Math.max(1, Math.min(10, this.rowsInput));
       this.$store.commit('setRows', rows);
       this.rowsInput = rows;
-      
+
       // Remove cannons that are now out of bounds
       const validCannons = this.cannons.filter(c => c.row <= rows);
       if (validCannons.length !== this.cannons.length) {
@@ -109,7 +98,7 @@ export default {
     },
     hasCannon(row, col) {
       // A cannon occupies 2 cells horizontally
-      return this.cannons.some(c => 
+      return this.cannons.some(c =>
         c.row === row && (c.col === col || c.col === col - 1)
       );
     },
@@ -117,7 +106,7 @@ export default {
       // Check if there's already a cannon at this position
       if (this.hasCannon(row, col)) {
         // Find the cannon and remove it
-        const cannon = this.cannons.find(c => 
+        const cannon = this.cannons.find(c =>
           c.row === row && (c.col === col || c.col === col - 1)
         );
         if (cannon) {
@@ -137,6 +126,9 @@ export default {
     },
     removeCannon(row, col) {
       this.$store.commit('removeCannon', { row, col });
+    },
+    updateFieldName() {
+      this.$store.commit('setFieldName', this.fieldNameInput);
     }
   }
 }
