@@ -68,16 +68,16 @@ export default {
   },
   computed: {
     rows() {
-      return this.$store.state.rows;
+      return this.$store.getters['field/rows'];
     },
     cannons() {
-      return this.$store.state.cannons;
+      return this.$store.getters['field/cannons'];
     },
     theme() {
-      return this.$store.state.theme;
+      return this.$store.getters['ui/theme'];
     },
     fieldName() {
-      return this.$store.state.fieldName;
+      return this.$store.getters['field/fieldName'];
     }
   },
   mounted() {
@@ -86,49 +86,23 @@ export default {
   },
   methods: {
     updateRows() {
-      const rows = Math.max(1, Math.min(10, this.rowsInput));
-      this.$store.commit('setRows', rows);
-      this.rowsInput = rows;
-
-      // Remove cannons that are now out of bounds
-      const validCannons = this.cannons.filter(c => c.row <= rows);
-      if (validCannons.length !== this.cannons.length) {
-        this.$store.commit('setCannons', validCannons);
-      }
+      this.$store.dispatch('field/setRows', this.rowsInput);
+      this.rowsInput = this.rows; // Update to the validated value
     },
     hasCannon(row, col) {
-      // A cannon occupies 2 cells horizontally
-      return this.cannons.some(c =>
-        c.row === row && (c.col === col || c.col === col - 1)
-      );
+      return this.$store.getters['field/hasCannonAt'](row, col);
     },
     toggleCannon(row, col) {
-      // Check if there's already a cannon at this position
-      if (this.hasCannon(row, col)) {
-        // Find the cannon and remove it
-        const cannon = this.cannons.find(c =>
-          c.row === row && (c.col === col || c.col === col - 1)
-        );
-        if (cannon) {
-          this.removeCannon(cannon.row, cannon.col);
-        }
-      } else {
-        // Check if we can place a cannon here (need 2 empty cells)
-        if (col < 9 && !this.hasCannon(row, col + 1)) {
-          this.addCannon(row, col);
-        } else if (col > 1 && !this.hasCannon(row, col - 1)) {
-          this.addCannon(row, col - 1);
-        }
-      }
+      this.$store.dispatch('field/toggleCannon', { row, col });
     },
     addCannon(row, col) {
-      this.$store.commit('addCannon', { row, col });
+      this.$store.dispatch('field/addCannon', { row, col });
     },
     removeCannon(row, col) {
-      this.$store.commit('removeCannon', { row, col });
+      this.$store.dispatch('field/removeCannon', { row, col });
     },
     updateFieldName() {
-      this.$store.commit('setFieldName', this.fieldNameInput);
+      this.$store.dispatch('field/setFieldName', this.fieldNameInput);
     }
   }
 }

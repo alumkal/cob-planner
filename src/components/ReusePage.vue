@@ -14,122 +14,37 @@
         <div v-else>
           <div v-for="(wave, waveIndex) in waves" :key="'wave-' + waveIndex" class="wave-container mb-4">
             <div class="wave-content">
-              <!-- Wave Header -->
-              <div class="wave-header" :class="theme === 'dark' ? 'dark-theme' : ''">
-                <div class="wave-info">
-                  <h6 class="wave-title">波次 {{ waveIndex + 1 }}</h6>
-                  <div class="wave-inputs">
-                    <div class="wave-duration">
-                      <label>波长:</label>
-                      <input
-                        type="number"
-                        class="form-control form-control-sm"
-                        :class="{ 'is-invalid': getWaveDurationError(waveIndex) }"
-                        v-model.number="wave.duration"
-                        min="1"
-                        @change="updateWave(waveIndex)"
-                        :title="getWaveDurationError(waveIndex) || ''"
-                      />
-                    </div>
-                    <div class="wave-notes">
-                      <label>备注:</label>
-                      <input
-                        type="text"
-                        class="form-control form-control-sm"
-                        v-model="wave.notes"
-                        @change="updateWave(waveIndex)"
-                        placeholder="在此输入备注信息..."
-                      />
-                    </div>
-                  </div>
-                </div>
-                <button class="btn btn-sm btn-danger" @click="removeWave(waveIndex)">
-                  移除波次
-                </button>
-              </div>
+              <!-- Wave Header Component -->
+              <WaveHeader
+                :wave="wave"
+                :wave-index="waveIndex"
+                :theme="theme"
+                :validation-errors="validationErrors"
+                @update-wave="handleWaveUpdate"
+                @remove-wave="handleRemoveWave"
+                @validation-error="handleValidationError"
+              />
 
               <!-- Operations Grid -->
               <div class="operations-grid">
-                <div
+                <OperationCard
                   v-for="(op, opIndex) in wave.operations"
                   :key="'operation-' + waveIndex + '-' + opIndex"
-                  class="operation-card"
-                  :class="[getOperationClass(waveIndex, opIndex), { 'dark-theme': theme === 'dark' }]"
-                  @mouseover="highlightOperation(waveIndex, opIndex)"
-                  @mouseout="clearHighlight"
-                >
-                  <!-- Time Input with Delete Button -->
-                  <div class="operation-row">
-                    <span class="row-label">时间:</span>
-                    <input
-                      type="text"
-                      class="form-control form-control-sm flex-grow-1"
-                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'time') }"
-                      v-model="op.time"
-                      @change="updateOperation(waveIndex, opIndex)"
-                      placeholder="300, w-200"
-                      :title="getValidationError(waveIndex, opIndex, 'time') || ''"
-                    />
-                    <button
-                      class="btn btn-sm btn-danger delete-btn"
-                      @click="removeOperation(waveIndex, opIndex)"
-                      title="删除操作"
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  <!-- Operation Type and Columns on same line -->
-                  <div class="operation-row">
-                    <select
-                      class="form-select form-select-sm operation-type-select"
-                      v-model="op.type"
-                      @change="updateOperation(waveIndex, opIndex)"
-                    >
-                      <option value="fire">发射</option>
-                      <option value="plant">种炮</option>
-                      <option value="remove">铲炮</option>
-                    </select>
-                    <input
-                      v-if="op.type === 'fire'"
-                      type="text"
-                      class="form-control form-control-sm flex-grow-1"
-                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'columns') }"
-                      v-model="op.columns"
-                      placeholder="1-5 7"
-                      @change="updateOperation(waveIndex, opIndex)"
-                      :title="getValidationError(waveIndex, opIndex, 'columns') || ''"
-                    />
-                    <div v-else class="flex-grow-1"></div>
-                  </div>
-
-                  <!-- Position Inputs -->
-                  <div class="operation-row">
-                    <input
-                      type="number"
-                      class="form-control form-control-sm"
-                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'row') }"
-                      v-model.number="op.row"
-                      min="1"
-                      :max="rows"
-                      @change="updateOperation(waveIndex, opIndex)"
-                      placeholder="行"
-                      :title="getValidationError(waveIndex, opIndex, 'row') || ''"
-                    />
-                    <input
-                      type="number"
-                      class="form-control form-control-sm"
-                      :class="{ 'is-invalid': getValidationError(waveIndex, opIndex, 'targetCol') }"
-                      v-model.number="op.targetCol"
-                      :min="op.type === 'fire' ? 0 : 1"
-                      :max="op.type === 'fire' ? 9.9875 : 8"
-                      :step="op.type === 'fire' ? 0.0125 : 1"
-                      @change="updateOperation(waveIndex, opIndex)"
-                      :placeholder="op.type === 'fire' ? '目标列' : '列'"
-                      :title="getValidationError(waveIndex, opIndex, 'targetCol') || ''"
-                    />
-                  </div>
-                </div>
+                  :operation="op"
+                  :wave-index="waveIndex"
+                  :op-index="opIndex"
+                  :theme="theme"
+                  :max-rows="rows"
+                  :operation-class="getOperationClass(waveIndex, opIndex)"
+                  :validation-errors="validationErrors"
+                  :cannons="cannons"
+                  :waves="waves"
+                  @update-operation="handleOperationUpdate"
+                  @remove-operation="handleRemoveOperation"
+                  @validation-error="handleValidationError"
+                  @highlight-operation="highlightOperation"
+                  @clear-highlight="clearHighlight"
+                />
 
                 <!-- Floating Add Operation Button -->
                 <div class="add-operation-card">
@@ -221,13 +136,18 @@
 </template>
 
 <script>
-import { solveReuse, preprocessOperations } from '../utils/solver.js';
+import { solveReuse } from '../utils/solver.js';
+import { validateWave, validateOperation } from '../utils/validation.js';
 import ExportDialog from './ExportDialog.vue';
+import WaveHeader from './WaveHeader.vue';
+import OperationCard from './OperationCard.vue';
 
 export default {
   name: 'ReusePage',
   components: {
-    ExportDialog
+    ExportDialog,
+    WaveHeader,
+    OperationCard
   },
   data() {
     return {
@@ -250,39 +170,36 @@ export default {
   },
   computed: {
     rows() {
-      return this.$store.state.rows;
+      return this.$store.getters['field/rows'];
     },
     cannons() {
-      return this.$store.state.cannons;
+      return this.$store.getters['field/cannons'];
     },
     waves() {
-      return this.$store.state.waves;
+      return this.$store.getters['waves/waves'];
     },
     theme() {
-      return this.$store.state.theme;
+      return this.$store.getters['ui/theme'];
     },
     totalOperations() {
-      return this.waves.reduce((total, wave) => {
-        return total + wave.operations.filter(op => op.type === 'fire').length;
-      }, 0);
+      return this.$store.getters['waves/totalOperations'];
     }
   },
   methods: {
     addWave() {
-      this.$store.commit('addWave');
+      this.$store.dispatch('waves/addWave');
     },
-    removeWave(index) {
-      this.$store.commit('removeWave', index);
+    
+    handleRemoveWave(waveIndex) {
+      this.$store.dispatch('waves/removeWave', waveIndex);
       this.calculationResult = null;
     },
-    updateWave(index) {
-      this.validateWave(index);
-      this.$store.commit('updateWave', {
-        index,
-        wave: this.waves[index]
-      });
+    
+    handleWaveUpdate(payload) {
+      this.$store.dispatch('waves/updateWave', payload);
       this.calculationResult = null;
     },
+    
     addOperation(waveIndex) {
       const operation = {
         type: 'fire',
@@ -292,28 +209,38 @@ export default {
         targetCol: 9,
       };
 
-      this.$store.commit('addOperation', { waveIndex, operation });
+      this.$store.dispatch('waves/addOperation', { waveIndex, operation });
       this.calculationResult = null;
       
       // Validate the new operation
       this.$nextTick(() => {
         const opIndex = this.waves[waveIndex].operations.length - 1;
-        this.validateOperation(waveIndex, opIndex);
+        this.validateOperationAtIndex(waveIndex, opIndex);
       });
     },
-    removeOperation(waveIndex, opIndex) {
-      this.$store.commit('removeOperation', { waveIndex, opIndex });
+    
+    handleRemoveOperation(payload) {
+      this.$store.dispatch('waves/removeOperation', payload);
       this.calculationResult = null;
     },
-    updateOperation(waveIndex, opIndex) {
-      this.validateOperation(waveIndex, opIndex);
-      this.$store.commit('updateOperation', {
-        waveIndex,
-        opIndex,
-        operation: this.waves[waveIndex].operations[opIndex]
-      });
+    
+    handleOperationUpdate(payload) {
+      this.$store.dispatch('waves/updateOperation', payload);
       this.calculationResult = null;
     },
+    
+    handleValidationError({ waveIndex, opIndex, field, error }) {
+      const key = opIndex !== undefined 
+        ? `${waveIndex}-${opIndex}-${field}` 
+        : `wave-${waveIndex}-${field}`;
+      
+      if (error) {
+        this.validationErrors.set(key, error);
+      } else {
+        this.validationErrors.delete(key);
+      }
+    },
+    
     calculate() {
       // Validate all inputs before calculation
       if (!this.validateAllInputs()) {
@@ -321,21 +248,10 @@ export default {
         return;
       }
       
-      // Flatten all operations
-      const allOperations = [];
-      this.waves.forEach((wave, waveIndex) => {
-        wave.operations.forEach((op, opIndex) => {
-          allOperations.push({
-            ...op,
-            waveIndex,
-            opIndex
-          });
-        });
-      });
-
       // Calculate reuse
       this.calculationResult = solveReuse(this.cannons, this.waves);
     },
+    
     getOperationClass(waveIndex, opIndex) {
       if (!this.calculationResult) return '';
 
@@ -357,6 +273,7 @@ export default {
         return 'error-bg';
       }
     },
+    
     getFlatIndex(waveIndex, opIndex) {
       let count = 0;
       for (let w = 0; w < this.waves.length; w++) {
@@ -371,9 +288,11 @@ export default {
       }
       return -1;
     },
-    highlightOperation(waveIndex, opIndex) {
+    
+    highlightOperation(payload) {
       if (!this.calculationResult) return;
 
+      const { waveIndex, opIndex } = payload;
       const op = this.waves[waveIndex].operations[opIndex];
       if (op.type !== 'fire') return;
 
@@ -417,392 +336,84 @@ export default {
         };
       }
     },
+    
     clearHighlight() {
       this.highlightedOp = null;
       this.prevOp = null;
       this.nextOp = null;
       this.tooltipStyle.display = 'none';
     },
-    validateTime(timeStr, waveIndex = null) {
-      if (!timeStr || timeStr.trim() === '') {
-        return '时间不能为空';
-      }
-      
-      const trimmed = timeStr.trim();
-      
-      // Check for variable expressions like "w-200", "w+100", etc.
-      const variablePattern = /^w([+-]\d+)?$/;
-      if (variablePattern.test(trimmed)) {
-        const match = trimmed.match(/^w([+-]\d+)?$/);
-        if (match[1]) {
-          const offset = parseInt(match[1]);
-          if (!Number.isInteger(offset)) {
-            return '变量表达式中的偏移量必须是整数';
-          }
-          
-          // Check absolute time if wave context is available
-          if (waveIndex !== null && waveIndex < this.waves.length) {
-            const wave = this.waves[waveIndex];
-            const absoluteTime = this.calculateAbsoluteTime(waveIndex, wave.duration + offset);
-            if (absoluteTime < -600) {
-              return '绝对时间不能小于-600';
-            }
-          }
-        }
-        return null;
-      }
-      
-      // Check for direct integer
-      const num = parseInt(trimmed);
-      if (!Number.isInteger(num) || num.toString() !== trimmed) {
-        return '时间必须是整数或变量表达式（如 w-200）';
-      }
-      
-      // Check absolute time if wave context is available
-      if (waveIndex !== null && waveIndex < this.waves.length) {
-        const absoluteTime = this.calculateAbsoluteTime(waveIndex, num);
-        if (absoluteTime < -600) {
-          return '绝对时间不能小于-600';
-        }
-      }
-      
-      return null;
-    },
     
-    // Calculate absolute time for a given wave and relative time
-    calculateAbsoluteTime(waveIndex, relativeTime) {
-      let absoluteTime = 0;
-      for (let i = 0; i < waveIndex; i++) {
-        if (i < this.waves.length) {
-          absoluteTime += this.waves[i].duration;
-        }
-      }
-      return absoluteTime + relativeTime;
-    },
-    validateRow(row, type) {
-      if (row === null || row === undefined || row === '') {
-        return '行数不能为空';
-      }
-      
-      if (!Number.isInteger(row)) {
-        return '行数必须是整数';
-      }
-      
-      if (row < 1 || row > this.rows) {
-        return `行数必须在 1-${this.rows} 范围内`;
-      }
-      
-      return null;
-    },
-    validateTargetCol(targetCol, type) {
-      if (targetCol === null || targetCol === undefined || targetCol === '') {
-        return '列数不能为空';
-      }
-      
-      if (type === 'fire') {
-        if (typeof targetCol !== 'number') {
-          return '目标列必须是数字';
-        }
-        if (targetCol < 0 || targetCol > 9.9875) {
-          return '目标列必须在 0-9.9875 范围内';
-        }
-        // Check if the value is a multiple of 1/80 (0.0125)
-        const scaledValue = Math.round(targetCol * 80);
-        const expectedValue = scaledValue / 80;
-        if (Math.abs(targetCol - expectedValue) > 1e-10) {
-          return '目标列必须是 1/80 的整数倍（如 0.0125, 0.025, 1.0000）';
-        }
-      } else {
-        if (!Number.isInteger(targetCol)) {
-          return '列数必须是整数';
-        }
-        if (targetCol < 1 || targetCol > 8) {
-          return '列数必须在 1-8 范围内';
-        }
-      }
-      
-      return null;
-    },
-    validateColumns(columnsStr) {
-      if (!columnsStr || columnsStr.trim() === '') {
-        return '发射列不能为空';
-      }
-      
-      const trimmed = columnsStr.trim();
-      
-      // Parse column ranges and individual columns
-      const parts = trimmed.split(/\s+/);
-      
-      for (const part of parts) {
-        if (part.includes('-')) {
-          // Range format like "1-5"
-          const [start, end] = part.split('-');
-          const startNum = parseInt(start);
-          const endNum = parseInt(end);
-          
-          if (!Number.isInteger(startNum) || !Number.isInteger(endNum) || 
-              startNum.toString() !== start || endNum.toString() !== end) {
-            return '列范围必须是整数';
-          }
-          
-          if (startNum < 1 || startNum > 8 || endNum < 1 || endNum > 8) {
-            return '列范围必须在 1-8 范围内';
-          }
-          
-          if (startNum > endNum) {
-            return '列范围起始列不能大于结束列';
-          }
-        } else {
-          // Individual column
-          const num = parseInt(part);
-          if (!Number.isInteger(num) || num.toString() !== part) {
-            return '列数必须是整数';
-          }
-          
-          if (num < 1 || num > 8) {
-            return '列数必须在 1-8 范围内';
-          }
-        }
-      }
-      
-      return null;
-    },
-    validateCannonPosition(row, targetCol, type, waveIndex = 0, opIndex = 0) {
-      if (type === 'remove') {
-        // For remove operations, check dynamically if cannon exists at operation time
-        const cannonExists = this.checkCannonExistsAtTime(row, targetCol, waveIndex, opIndex);
-        if (!cannonExists) {
-          return '该位置没有炮可以铲除';
-        }
-      } else if (type === 'plant') {
-        // For plant operations, check for 1x2 overlap dynamically
-        const wouldOverlap = this.checkPlantOverlapAtTime(row, targetCol, waveIndex, opIndex);
-        if (wouldOverlap) {
-          return '该位置与已有炮重叠（炮为1x2大小）';
-        }
-      }
-      
-      return null;
-    },
-    
-    // Check if two cannons would overlap (cannons are 1x2, centers must be 2+ apart in same row)
-    doCannonsOverlap(row1, col1, row2, col2) {
-      return row1 === row2 && Math.abs(col1 - col2) < 2;
-    },
-    
-    // Check if cannon exists at a specific time by simulating operations
-    checkCannonExistsAtTime(row, targetCol, currentWaveIndex, currentOpIndex) {
-      // Get all operations up to this point
-      const allOps = this.getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex);
-      
-      // Start with initial cannons
-      const cannonState = this.cannons.map(c => ({ row: c.row, col: c.col }));
-      
-      // Simulate operations chronologically
-      for (const op of allOps) {
-        if (op.type === 'plant') {
-          cannonState.push({ row: op.row, col: op.targetCol });
-        } else if (op.type === 'remove') {
-          const index = cannonState.findIndex(c => c.row === op.row && c.col === op.targetCol);
-          if (index !== -1) {
-            cannonState.splice(index, 1);
-          }
-        }
-      }
-      
-      // Check if cannon exists at target position
-      return cannonState.some(c => c.row === row && c.col === targetCol);
-    },
-    
-    // Check if planting would cause overlap at a specific time
-    checkPlantOverlapAtTime(row, targetCol, currentWaveIndex, currentOpIndex) {
-      // Get all operations up to this point
-      const allOps = this.getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex);
-      
-      // Start with initial cannons
-      const cannonState = this.cannons.map(c => ({ row: c.row, col: c.col }));
-      
-      // Simulate operations chronologically
-      for (const op of allOps) {
-        if (op.type === 'plant') {
-          cannonState.push({ row: op.row, col: op.targetCol });
-        } else if (op.type === 'remove') {
-          const index = cannonState.findIndex(c => c.row === op.row && c.col === op.targetCol);
-          if (index !== -1) {
-            cannonState.splice(index, 1);
-          }
-        }
-      }
-      
-      // Check if planting at target position would overlap with existing cannons
-      return cannonState.some(c => this.doCannonsOverlap(c.row, c.col, row, targetCol));
-    },
-    
-    // Get all operations up to a specific point, sorted by time
-    getAllOperationsUpToPoint(currentWaveIndex, currentOpIndex) {
-      const allOps = [];
-      let absoluteTime = 0;
-      
-      // First, collect ALL operations with their absolute times
-      const allOperationsWithTime = [];
-      let waveStartTime = 0;
-      
-      for (let waveIndex = 0; waveIndex < this.waves.length; waveIndex++) {
-        const wave = this.waves[waveIndex];
-        
-        for (let opIndex = 0; opIndex < wave.operations.length; opIndex++) {
-          const op = wave.operations[opIndex];
-          
-          // Only include plant/remove operations
-          if (op.type === 'plant' || op.type === 'remove') {
-            // Parse the time expression
-            let time;
-            try {
-              const timeExpr = op.time.toString().replace(/w/g, wave.duration);
-              time = Math.floor(Function(`return ${timeExpr}`)());
-            } catch (e) {
-              time = 0;
-            }
-            
-            allOperationsWithTime.push({
-              ...op,
-              absoluteTime: waveStartTime + time,
-              waveIndex,
-              opIndex
-            });
-          }
-        }
-        
-        waveStartTime += wave.duration;
-      }
-      
-      // Sort all operations by absolute time
-      allOperationsWithTime.sort((a, b) => a.absoluteTime - b.absoluteTime);
-      
-      // Find the current operation in the sorted list
-      const currentOp = allOperationsWithTime.find(op => 
-        op.waveIndex === currentWaveIndex && op.opIndex === currentOpIndex
+    validateOperationAtIndex(waveIndex, opIndex) {
+      const operation = this.waves[waveIndex].operations[opIndex];
+      const errors = validateOperation(
+        operation,
+        waveIndex,
+        opIndex,
+        this.rows,
+        this.cannons,
+        this.waves
       );
       
-      if (!currentOp) {
-        return []; // Current operation not found
-      }
-      
-      // Return all operations that happen before the current operation in time
-      // Also include operations at the same time that are remove operations (they should process first)
-      return allOperationsWithTime.filter(op => {
-        if (op.absoluteTime < currentOp.absoluteTime) {
-          return true;
-        }
-        if (op.absoluteTime === currentOp.absoluteTime && op.type === 'remove' && currentOp.type === 'plant') {
-          return true;
-        }
-        return false;
-      });
-    },
-    validateWaveDuration(duration) {
-      if (duration === null || duration === undefined || duration === '') {
-        return '波长不能为空';
-      }
-      
-      if (!Number.isInteger(duration)) {
-        return '波长必须是整数';
-      }
-      
-      if (duration < 1) {
-        return '波长必须大于 0';
-      }
-      
-      return null;
-    },
-    getValidationError(waveIndex, opIndex, field) {
-      const key = `${waveIndex}-${opIndex}-${field}`;
-      return this.validationErrors.get(key) || null;
-    },
-    getWaveDurationError(waveIndex) {
-      const key = `wave-${waveIndex}-duration`;
-      return this.validationErrors.get(key) || null;
-    },
-    validateOperation(waveIndex, opIndex) {
-      const op = this.waves[waveIndex].operations[opIndex];
-      const errors = new Map();
-      
-      // Validate time
-      const timeError = this.validateTime(op.time, waveIndex);
-      if (timeError) {
-        errors.set(`${waveIndex}-${opIndex}-time`, timeError);
-      }
-      
-      // Validate row
-      const rowError = this.validateRow(op.row, op.type);
-      if (rowError) {
-        errors.set(`${waveIndex}-${opIndex}-row`, rowError);
-      }
-      
-      // Validate target column
-      const targetColError = this.validateTargetCol(op.targetCol, op.type);
-      if (targetColError) {
-        errors.set(`${waveIndex}-${opIndex}-targetCol`, targetColError);
-      }
-      
-      // Validate columns for fire operations
-      if (op.type === 'fire') {
-        const columnsError = this.validateColumns(op.columns);
-        if (columnsError) {
-          errors.set(`${waveIndex}-${opIndex}-columns`, columnsError);
-        }
-      }
-      
-      // Validate cannon position for plant/remove operations
-      if (op.type === 'plant' || op.type === 'remove') {
-        const cannonError = this.validateCannonPosition(op.row, op.targetCol, op.type, waveIndex, opIndex);
-        if (cannonError) {
-          errors.set(`${waveIndex}-${opIndex}-targetCol`, cannonError);
-        }
-      }
-      
       // Update validation errors
-      errors.forEach((error, key) => {
-        this.validationErrors.set(key, error);
+      Object.keys(errors).forEach(field => {
+        this.handleValidationError({
+          waveIndex,
+          opIndex,
+          field,
+          error: errors[field]
+        });
       });
       
       // Clear errors that are no longer present
       const fieldsToCheck = ['time', 'row', 'targetCol', 'columns'];
       fieldsToCheck.forEach(field => {
-        const key = `${waveIndex}-${opIndex}-${field}`;
-        if (!errors.has(key)) {
-          this.validationErrors.delete(key);
+        if (!errors[field]) {
+          this.handleValidationError({
+            waveIndex,
+            opIndex,
+            field,
+            error: null
+          });
         }
       });
     },
-    validateWave(waveIndex) {
+    
+    validateWaveAtIndex(waveIndex) {
       const wave = this.waves[waveIndex];
-      const key = `wave-${waveIndex}-duration`;
+      const errors = validateWave(wave, waveIndex);
       
-      const durationError = this.validateWaveDuration(wave.duration);
-      if (durationError) {
-        this.validationErrors.set(key, durationError);
-      } else {
-        this.validationErrors.delete(key);
+      Object.keys(errors).forEach(field => {
+        this.handleValidationError({
+          waveIndex,
+          field,
+          error: errors[field]
+        });
+      });
+      
+      if (!errors.duration) {
+        this.handleValidationError({
+          waveIndex,
+          field: 'duration',
+          error: null
+        });
       }
     },
+    
     validateAllInputs() {
       this.validationErrors.clear();
       
       // Validate all waves
       this.waves.forEach((wave, waveIndex) => {
-        this.validateWave(waveIndex);
+        this.validateWaveAtIndex(waveIndex);
         
         // Validate all operations in this wave
         wave.operations.forEach((op, opIndex) => {
-          this.validateOperation(waveIndex, opIndex);
+          this.validateOperationAtIndex(waveIndex, opIndex);
         });
       });
       
       return this.validationErrors.size === 0;
-    },
-    hasValidationErrors() {
-      return this.validationErrors.size > 0;
     }
   },
   watch: {
@@ -851,86 +462,6 @@ export default {
   margin-bottom: 0;
 }
 
-/* Wave Header Styling */
-.wave-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background-color: rgba(0, 0, 0, 0.02);
-  border: 1px solid #dee2e6;
-  border-radius: 8px 8px 0 0;
-  margin-bottom: 0;
-}
-
-.wave-header.dark-theme {
-  background-color: rgba(255, 255, 255, 0.02);
-  border-color: #495057;
-}
-
-.wave-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex: 1;
-  margin-right: 16px;
-}
-
-.wave-title {
-  margin: 0;
-  font-weight: 600;
-  color: #495057;
-}
-
-.dark .wave-title {
-  color: #adb5bd;
-}
-
-.wave-inputs {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex: 1;
-}
-
-.wave-duration {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.wave-duration label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin: 0;
-  white-space: nowrap;
-}
-
-.wave-duration input {
-  width: 80px;
-}
-
-.wave-notes {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-
-.wave-notes label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin: 0;
-  white-space: nowrap;
-}
-
-.wave-notes input {
-  flex: 1;
-  min-width: 0;
-}
-
 /* Operations Grid Styling */
 .operations-grid {
   display: flex;
@@ -948,99 +479,6 @@ export default {
 .dark .operations-grid {
   background-color: rgba(255, 255, 255, 0.01);
   border-color: #495057;
-}
-
-/* Operation Card Styling */
-.operation-card {
-  flex: 0 0 190px;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  padding: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease;
-}
-
-.operation-card:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
-}
-
-.operation-card.dark-theme {
-  background: #343a40;
-  border-color: #495057;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.operation-card.dark-theme:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.operation-card.success-bg {
-  background-color: rgba(25, 135, 84, 0.1) !important;
-  border-color: rgba(25, 135, 84, 0.3) !important;
-}
-
-.operation-card.error-bg {
-  background-color: rgba(220, 53, 69, 0.1) !important;
-  border-color: rgba(220, 53, 69, 0.3) !important;
-}
-
-.operation-card.dark-theme.success-bg {
-  background-color: rgba(25, 135, 84, 0.2) !important;
-  border-color: rgba(25, 135, 84, 0.4) !important;
-}
-
-.operation-card.dark-theme.error-bg {
-  background-color: rgba(220, 53, 69, 0.2) !important;
-  border-color: rgba(220, 53, 69, 0.4) !important;
-}
-
-/* Operation Row Styling */
-.operation-row {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.operation-row:last-child {
-  margin-bottom: 0;
-}
-
-.row-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #6c757d;
-  min-width: 32px;
-  flex-shrink: 0;
-}
-
-.dark .row-label {
-  color: #adb5bd;
-}
-
-.operation-type-select {
-  width: 75px;
-  flex-shrink: 0;
-}
-
-.delete-btn {
-  padding: 3px;
-  line-height: 1;
-  font-size: 11px;
-  min-width: auto;
-  flex-shrink: 0;
-}
-
-.flex-grow-1 {
-  flex-grow: 1;
-  min-width: 0;
-}
-
-.operation-row input[type="number"] {
-  flex: 1;
-  min-width: 0;
 }
 
 /* Add Operation Card */
@@ -1151,63 +589,11 @@ export default {
   box-shadow: 0 0 4px rgba(32, 201, 151, 0.5);
 }
 
-/* Validation error styles */
-.form-control.is-invalid, .form-select.is-invalid {
-  border-color: #dc3545;
-  background-color: rgba(220, 53, 69, 0.1);
-  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-}
-
-.dark .form-control.is-invalid, .dark .form-select.is-invalid {
-  border-color: #dc3545;
-  background-color: rgba(220, 53, 69, 0.2);
-  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-}
-
-.form-control.is-invalid:focus, .form-select.is-invalid:focus {
-  border-color: #dc3545;
-  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-}
-
 /* Responsive adjustments */
-@media (max-width: 1200px) {
-  .operation-card {
-    flex: 0 0 170px;
-  }
-}
-
 @media (max-width: 768px) {
-  .wave-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    padding: 12px;
-  }
-
-  .wave-info {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .wave-inputs {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .wave-duration,
-  .wave-notes {
-    justify-content: space-between;
-  }
-
   .operations-grid {
     gap: 12px;
     padding: 12px;
-  }
-
-  .operation-card {
-    flex: 0 0 100%;
-    min-width: 0;
   }
 
   .add-operation-card {
@@ -1233,21 +619,6 @@ export default {
   .add-icon::after {
     width: 2px;
     height: 20px;
-  }
-}
-
-@media (max-width: 480px) {
-  .operation-card {
-    padding: 6px;
-  }
-
-  .operation-row {
-    margin-bottom: 4px;
-  }
-
-  .row-label {
-    font-size: 0.7rem;
-    min-width: 28px;
   }
 }
 </style>

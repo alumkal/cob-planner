@@ -38,27 +38,22 @@ export default {
   name: 'Layout',
   computed: {
     theme() {
-      return this.$store.state.theme;
+      return this.$store.getters['ui/theme'];
     }
   },
   methods: {
     toggleTheme() {
-      this.$store.commit('toggleTheme');
+      this.$store.dispatch('ui/toggleTheme');
     },
     saveData() {
-      const data = {
-        fieldName: this.$store.state.fieldName,
-        rows: this.$store.state.rows,
-        cannons: this.$store.state.cannons,
-        waves: this.$store.state.waves
-      };
+      const data = this.$store.dispatch('exportData');
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
       const a = document.createElement('a');
       a.href = url;
-      const fieldName = this.$store.state.fieldName?.trim();
+      const fieldName = this.$store.getters['field/fieldName']?.trim();
       a.download = fieldName ? `${fieldName}.json` : 'cobplanner-data.json';
       document.body.appendChild(a);
       a.click();
@@ -68,15 +63,15 @@ export default {
     loadData() {
       this.$refs.fileInput.click();
     },
-    handleFileUpload(event) {
+    async handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
       
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          this.$store.commit('importData', data);
+          await this.$store.dispatch('importData', data);
           alert('数据加载成功!');
         } catch (error) {
           alert('数据加载失败: ' + error.message);

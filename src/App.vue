@@ -9,7 +9,7 @@ export default {
   name: 'App',
   computed: {
     theme() {
-      return this.$store.state.theme;
+      return this.$store.getters['ui/theme'];
     }
   }
 }
