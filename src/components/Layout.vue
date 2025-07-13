@@ -16,6 +16,22 @@
             </li>
           </ul>
           <div class="d-flex">
+            <button 
+              class="btn btn-outline-secondary me-2" 
+              @click="undo" 
+              :disabled="!canUndo"
+              title="撤销 (Ctrl+Z)"
+            >
+              ↶ 撤销
+            </button>
+            <button 
+              class="btn btn-outline-secondary me-2" 
+              @click="redo" 
+              :disabled="!canRedo"
+              title="重做 (Ctrl+Y)"
+            >
+              ↷ 重做
+            </button>
             <button class="btn btn-outline-primary me-2" @click="toggleTheme">
               {{ theme === 'light' ? '深色模式' : '浅色模式' }}
             </button>
@@ -34,36 +50,44 @@
 </template>
 
 <script>
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useStore } from 'vuex';
+import { useUndoRedo } from '../composables/useUndoRedo.js';
+
 export default {
   name: 'Layout',
-  computed: {
-    theme() {
-      return this.$store.getters['ui/theme'];
-    }
-  },
-  methods: {
-    toggleTheme() {
-      this.$store.dispatch('ui/toggleTheme');
-    },
-    async saveData() {
-      const data = await this.$store.dispatch('exportData');
+  setup() {
+    const store = useStore();
+    const fileInput = ref(null);
+    const { canUndo, canRedo, undo, redo } = useUndoRedo();
+    
+    const theme = computed(() => store.getters['ui/theme']);
+    
+    const toggleTheme = () => {
+      store.dispatch('ui/toggleTheme');
+    };
+    
+    const saveData = async () => {
+      const data = await store.dispatch('exportData');
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
       const a = document.createElement('a');
       a.href = url;
-      const fieldName = this.$store.getters['field/fieldName']?.trim();
+      const fieldName = store.getters['field/fieldName']?.trim();
       a.download = fieldName ? `${fieldName}.json` : 'cobplanner-data.json';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    },
-    loadData() {
-      this.$refs.fileInput.click();
-    },
-    async handleFileUpload(event) {
+    };
+    
+    const loadData = () => {
+      fileInput.value.click();
+    };
+    
+    const handleFileUpload = async (event) => {
       const file = event.target.files[0];
       if (!file) return;
       
@@ -71,7 +95,7 @@ export default {
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          await this.$store.dispatch('importData', data);
+          await store.dispatch('importData', data);
           alert('数据加载成功!');
         } catch (error) {
           alert('数据加载失败: ' + error.message);
@@ -81,7 +105,41 @@ export default {
       
       // Reset the file input
       event.target.value = '';
-    }
+    };
+    
+    // Keyboard shortcuts for undo/redo
+    const handleKeydown = (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        if (event.key === 'z' && !event.shiftKey) {
+          event.preventDefault();
+          undo();
+        } else if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
+          event.preventDefault();
+          redo();
+        }
+      }
+    };
+    
+    onMounted(() => {
+      document.addEventListener('keydown', handleKeydown);
+    });
+    
+    onUnmounted(() => {
+      document.removeEventListener('keydown', handleKeydown);
+    });
+    
+    return {
+      fileInput,
+      theme,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
+      toggleTheme,
+      saveData,
+      loadData,
+      handleFileUpload
+    };
   }
 }
 </script>

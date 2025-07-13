@@ -15,6 +15,7 @@
   "description": "Cob Cannon Reuse Calculator for Plants vs Zombies",
   "dependencies": {
     "@vitejs/plugin-vue": "^6.0.0",
+    "@vueuse/core": "^13.5.0",
     "logic-solver": "^2.0.1",
     "vite": "^7.0.2",
     "vue": "^3.5.17",

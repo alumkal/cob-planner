@@ -79,6 +79,26 @@ const actions = {
   resetToDefaults({ dispatch }) {
     dispatch('clearAllData');
     dispatch('ui/setTheme', 'light');
+  },
+  
+  // Restore field state for undo/redo functionality
+  restoreFieldState({ dispatch }, fieldState) {
+    if (fieldState.fieldName !== undefined) {
+      dispatch('field/setFieldName', fieldState.fieldName);
+    }
+    if (fieldState.rows !== undefined) {
+      dispatch('field/setRows', fieldState.rows);
+    }
+    if (fieldState.cannons !== undefined) {
+      dispatch('field/setCannons', fieldState.cannons);
+    }
+  },
+  
+  // Restore waves state for undo/redo functionality
+  restoreWavesState({ dispatch }, wavesState) {
+    if (wavesState.waves !== undefined) {
+      dispatch('waves/setWaves', wavesState.waves);
+    }
   }
 };
 
