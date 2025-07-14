@@ -99,6 +99,34 @@ const mutations = {
   CLEAR_WAVES(state) {
     state.waves = [];
     setWaves(state.waves);
+  },
+  // Drag and drop mutations
+  MOVE_OPERATION_WITHIN_WAVE(state, { waveIndex, fromIndex, toIndex }) {
+    if (state.waves[waveIndex] && 
+        fromIndex >= 0 && fromIndex < state.waves[waveIndex].operations.length &&
+        toIndex >= 0 && toIndex < state.waves[waveIndex].operations.length) {
+      const operations = state.waves[waveIndex].operations;
+      const [movedOperation] = operations.splice(fromIndex, 1);
+      operations.splice(toIndex, 0, movedOperation);
+      setWaves(state.waves);
+    }
+  },
+  MOVE_OPERATION_BETWEEN_WAVES(state, { fromWaveIndex, fromOpIndex, toWaveIndex, toOpIndex }) {
+    if (state.waves[fromWaveIndex] && state.waves[toWaveIndex] &&
+        fromOpIndex >= 0 && fromOpIndex < state.waves[fromWaveIndex].operations.length &&
+        toOpIndex >= 0 && toOpIndex <= state.waves[toWaveIndex].operations.length) {
+      const [movedOperation] = state.waves[fromWaveIndex].operations.splice(fromOpIndex, 1);
+      state.waves[toWaveIndex].operations.splice(toOpIndex, 0, movedOperation);
+      setWaves(state.waves);
+    }
+  },
+  MOVE_WAVE(state, { fromIndex, toIndex }) {
+    if (fromIndex >= 0 && fromIndex < state.waves.length &&
+        toIndex >= 0 && toIndex < state.waves.length) {
+      const [movedWave] = state.waves.splice(fromIndex, 1);
+      state.waves.splice(toIndex, 0, movedWave);
+      setWaves(state.waves);
+    }
   }
 };
 
@@ -164,6 +192,16 @@ const actions = {
       waves.splice(toIndex, 0, movedWave);
       commit('SET_WAVES', waves);
     }
+  },
+  // Drag and drop actions
+  moveOperationWithinWave({ commit }, { waveIndex, fromIndex, toIndex }) {
+    commit('MOVE_OPERATION_WITHIN_WAVE', { waveIndex, fromIndex, toIndex });
+  },
+  moveOperationBetweenWaves({ commit }, { fromWaveIndex, fromOpIndex, toWaveIndex, toOpIndex }) {
+    commit('MOVE_OPERATION_BETWEEN_WAVES', { fromWaveIndex, fromOpIndex, toWaveIndex, toOpIndex });
+  },
+  moveWaveDragDrop({ commit }, { fromIndex, toIndex }) {
+    commit('MOVE_WAVE', { fromIndex, toIndex });
   }
 };
 

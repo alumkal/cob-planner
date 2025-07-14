@@ -5,6 +5,15 @@
     @contextmenu.prevent="handleRightClick"
     @click.stop="$emit('click', waveIndex, $event)"
   >
+    <!-- Drag Handle -->
+    <div class="wave-drag-handle" :class="{ 'dark-theme': theme === 'dark' }">
+      <div class="drag-lines">
+        <div class="line"></div>
+        <div class="line"></div>
+        <div class="line"></div>
+      </div>
+    </div>
+    
     <div class="wave-info">
       <h6 class="wave-title">波次 {{ waveIndex + 1 }}</h6>
       <div class="wave-inputs">
@@ -132,6 +141,7 @@ export default {
   border-radius: 8px 8px 0 0;
   margin-bottom: 0;
   cursor: pointer;
+  position: relative;
 }
 
 .wave-header.dark-theme {
@@ -152,12 +162,72 @@ export default {
   box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.35) !important;
 }
 
+/* Wave Drag Handle Styles */
+.wave-drag-handle {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 16px;
+  cursor: grab;
+  opacity: 0.3;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.wave-drag-handle:hover {
+  opacity: 0.7;
+}
+
+.wave-drag-handle:active {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.drag-lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+
+.line {
+  width: 16px;
+  height: 2px;
+  background-color: #6c757d;
+  border-radius: 1px;
+  transition: background-color 0.2s ease;
+}
+
+.wave-drag-handle:hover .line {
+  background-color: #495057;
+}
+
+.wave-drag-handle.dark-theme .line {
+  background-color: #adb5bd;
+}
+
+.wave-drag-handle.dark-theme:hover .line {
+  background-color: #f8f9fa;
+}
+
+.wave-header:hover .wave-drag-handle {
+  opacity: 0.6;
+}
+
+.wave-header.selected .wave-drag-handle {
+  opacity: 0.8;
+}
+
 .wave-info {
   display: flex;
   align-items: center;
   gap: 20px;
   flex: 1;
   margin-right: 16px;
+  margin-left: 32px;
 }
 
 .wave-title {

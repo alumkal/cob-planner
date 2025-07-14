@@ -12,66 +12,95 @@
         </div>
 
         <div v-else>
-          <div v-for="(wave, waveIndex) in waves" :key="'wave-' + waveIndex" 
-               class="wave-container mb-4"
-               :class="{ 'wave-selected': isWaveSelected(waveIndex) }">
-            <div class="wave-content">
-              <!-- Wave Header Component -->
-              <WaveHeader
-                :wave="wave"
-                :wave-index="waveIndex"
-                :theme="theme"
-                :validation-errors="validationErrors"
-                :is-selected="isWaveSelected(waveIndex)"
-                @update-wave="handleWaveUpdate"
-                @remove-wave="handleRemoveWave"
-                @validation-error="handleValidationError"
-                @context-menu="showContextMenu"
-                @click="handleWaveClick"
-              />
+          <draggable
+            v-model="wavesForDragging"
+            :item-key="item => item.id"
+            :group="{ name: 'waves', pull: true, put: true }"
+            :animation="200"
+            ghost-class="drag-ghost"
+            chosen-class="drag-chosen"
+            drag-class="drag-drag"
+            @start="onWaveDragStart"
+            @end="onWaveDragEnd"
+            @change="onWaveChange"
+          >
+            <template #item="{ element: wave, index: waveIndex }">
+              <div class="wave-container mb-4"
+                   :class="{ 'wave-selected': isWaveSelected(waveIndex) }">
+                <div class="wave-content">
+                  <!-- Wave Header Component -->
+                  <WaveHeader
+                    :wave="wave"
+                    :wave-index="waveIndex"
+                    :theme="theme"
+                    :validation-errors="validationErrors"
+                    :is-selected="isWaveSelected(waveIndex)"
+                    @update-wave="handleWaveUpdate"
+                    @remove-wave="handleRemoveWave"
+                    @validation-error="handleValidationError"
+                    @context-menu="showContextMenu"
+                    @click="handleWaveClick"
+                  />
 
-              <!-- Operations Grid -->
-              <div 
-                class="operations-grid"
-                @contextmenu="handleGridRightClick($event, waveIndex)"
-                @click="handleGridClick($event, waveIndex)"
-              >
-                <OperationCard
-                  v-for="(op, opIndex) in wave.operations"
-                  :key="'operation-' + waveIndex + '-' + opIndex"
-                  :operation="op"
-                  :wave-index="waveIndex"
-                  :op-index="opIndex"
-                  :theme="theme"
-                  :max-rows="rows"
-                  :operation-class="getOperationClass(waveIndex, opIndex)"
-                  :validation-errors="validationErrors"
-                  :cannons="cannons"
-                  :waves="waves"
-                  :is-selected="isOperationSelected(waveIndex, opIndex)"
-                  @update-operation="handleOperationUpdate"
-                  @remove-operation="handleRemoveOperation"
-                  @validation-error="handleValidationError"
-                  @highlight-operation="highlightOperation"
-                  @clear-highlight="clearHighlight"
-                  @context-menu="showContextMenu"
-                  @click="handleOperationClick"
-                />
-
-                <!-- Floating Add Operation Button -->
-                <div class="add-operation-card">
-                  <button
-                    class="add-operation-btn-floating"
-                    @click="addOperation(waveIndex)"
-                    title="添加操作"
-                    :class="{ 'dark-theme': theme === 'dark' }"
+                  <!-- Operations Grid -->
+                  <div 
+                    class="operations-grid"
+                    @contextmenu="handleGridRightClick($event, waveIndex)"
+                    @click="handleGridClick($event, waveIndex)"
                   >
-                    <span class="add-icon"></span>
-                  </button>
+                    <draggable
+                      v-model="wave.operations"
+                      :item-key="(item, index) => `${waveIndex}-${index}`"
+                      :group="{ name: 'operations', pull: true, put: true }"
+                      :animation="200"
+                      ghost-class="drag-ghost"
+                      chosen-class="drag-chosen"
+                      drag-class="drag-drag"
+                      class="operations-drag-container"
+                      @start="onOperationDragStart"
+                      @end="onOperationDragEnd"
+                      @change="(evt) => onOperationChange(evt, waveIndex)"
+                    >
+                      <template #item="{ element: op, index: opIndex }">
+                        <OperationCard
+                          :key="'operation-' + waveIndex + '-' + opIndex"
+                          :operation="op"
+                          :wave-index="waveIndex"
+                          :op-index="opIndex"
+                          :theme="theme"
+                          :max-rows="rows"
+                          :operation-class="getOperationClass(waveIndex, opIndex)"
+                          :validation-errors="validationErrors"
+                          :cannons="cannons"
+                          :waves="waves"
+                          :is-selected="isOperationSelected(waveIndex, opIndex)"
+                          @update-operation="handleOperationUpdate"
+                          @remove-operation="handleRemoveOperation"
+                          @validation-error="handleValidationError"
+                          @highlight-operation="highlightOperation"
+                          @clear-highlight="clearHighlight"
+                          @context-menu="showContextMenu"
+                          @click="handleOperationClick"
+                        />
+                      </template>
+                    </draggable>
+
+                    <!-- Floating Add Operation Button -->
+                    <div class="add-operation-card">
+                      <button
+                        class="add-operation-btn-floating"
+                        @click="addOperation(waveIndex)"
+                        title="添加操作"
+                        :class="{ 'dark-theme': theme === 'dark' }"
+                      >
+                        <span class="add-icon"></span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </template>
+          </draggable>
 
           <div 
             class="text-center add-wave-area"
@@ -177,10 +206,12 @@
 import { solveReuse } from '../utils/solver.js';
 import { validateWave, validateOperation } from '../utils/validation.js';
 import { useCopyPaste } from '../composables/useCopyPaste.js';
+import { useDragDrop } from '../composables/useDragDrop.js';
 import ExportDialog from './ExportDialog.vue';
 import WaveHeader from './WaveHeader.vue';
 import OperationCard from './OperationCard.vue';
 import ContextMenu from './ContextMenu.vue';
+import draggable from 'vuedraggable';
 
 export default {
   name: 'ReusePage',
@@ -188,12 +219,15 @@ export default {
     ExportDialog,
     WaveHeader,
     OperationCard,
-    ContextMenu
+    ContextMenu,
+    draggable
   },
   setup() {
     const copyPasteComposable = useCopyPaste();
+    const dragDropComposable = useDragDrop();
     return {
-      copyPasteComposable
+      copyPasteComposable,
+      dragDropComposable
     };
   },
   data() {
@@ -255,6 +289,24 @@ export default {
     },
     hasSelection() {
       return this.$store.getters['selection/hasSelection'];
+    },
+    // Drag and drop computed properties
+    wavesForDragging: {
+      get() {
+        return this.waves.map((wave, index) => ({
+          ...wave,
+          id: `wave-${index}`,
+          originalIndex: index
+        }));
+      },
+      set(newWaves) {
+        // Handle wave reordering
+        const reorderedWaves = newWaves.map(wave => {
+          const { id, originalIndex, ...waveData } = wave;
+          return waveData;
+        });
+        this.$store.dispatch('waves/setWaves', reorderedWaves);
+      }
     }
   },
   methods: {
@@ -689,6 +741,50 @@ export default {
           });
         }
       });
+    },
+    
+    // Drag and drop event handlers
+    onWaveDragStart(evt) {
+      console.log('Wave drag start:', evt);
+      this.dragDropComposable.isDragging = true;
+    },
+    
+    onWaveDragEnd(evt) {
+      console.log('Wave drag end:', evt);
+      this.dragDropComposable.isDragging = false;
+      this.calculationResult = null;
+    },
+    
+    onWaveChange(evt) {
+      console.log('Wave change:', evt);
+      this.calculationResult = null;
+      // Validation will be handled by the computed property setter
+    },
+    
+    onOperationDragStart(evt) {
+      console.log('Operation drag start:', evt);
+      this.dragDropComposable.isDragging = true;
+    },
+    
+    onOperationDragEnd(evt) {
+      console.log('Operation drag end:', evt);
+      this.dragDropComposable.isDragging = false;
+      this.calculationResult = null;
+    },
+    
+    onOperationChange(evt, waveIndex) {
+      console.log('Operation change:', evt, 'Wave:', waveIndex);
+      this.calculationResult = null;
+      
+      // Re-validate all operations in the affected wave
+      this.$nextTick(() => {
+        const wave = this.waves[waveIndex];
+        if (wave) {
+          wave.operations.forEach((op, opIndex) => {
+            this.validateOperationAtIndex(waveIndex, opIndex);
+          });
+        }
+      });
     }
   },
   watch: {
@@ -792,6 +888,16 @@ export default {
   min-height: 90px;
   align-items: stretch;
   cursor: pointer;
+}
+
+/* Drag container styling */
+.operations-drag-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+  align-items: stretch;
+  min-height: 60px;
 }
 
 .dark .operations-grid {
@@ -920,6 +1026,97 @@ export default {
 
 .dark .add-wave-area:hover {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Drag and drop styles */
+.drag-ghost {
+  opacity: 0.5;
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border: 2px dashed rgba(0, 123, 255, 0.5) !important;
+}
+
+.drag-chosen {
+  opacity: 0.8;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3) !important;
+}
+
+.drag-drag {
+  opacity: 0.9;
+  transform: rotate(5deg);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark .drag-ghost {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+}
+
+.dark .drag-chosen {
+  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.4) !important;
+}
+
+/* Wave drag styles */
+.wave-container.drag-ghost {
+  opacity: 0.5;
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border: 2px dashed rgba(0, 123, 255, 0.5) !important;
+}
+
+.wave-container.drag-chosen {
+  opacity: 0.8;
+  transform: scale(1.01);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3) !important;
+}
+
+.wave-container.drag-drag {
+  opacity: 0.9;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark .wave-container.drag-ghost {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+}
+
+.dark .wave-container.drag-chosen {
+  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.4) !important;
+}
+
+/* Operation drag styles */
+.operation-card.drag-ghost {
+  opacity: 0.5;
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border: 2px dashed rgba(0, 123, 255, 0.5) !important;
+}
+
+.operation-card.drag-chosen {
+  opacity: 0.8;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3) !important;
+}
+
+.operation-card.drag-drag {
+  opacity: 0.9;
+  transform: rotate(10deg);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark .operation-card.drag-ghost {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+}
+
+.dark .operation-card.drag-chosen {
+  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.4) !important;
+}
+
+/* Drag feedback animations */
+.drag-ghost,
+.drag-chosen,
+.drag-drag {
+  transition: all 0.2s ease;
 }
 
 /* Responsive adjustments */

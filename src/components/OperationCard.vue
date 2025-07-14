@@ -7,6 +7,17 @@
     @contextmenu.prevent="handleRightClick"
     @click.stop="$emit('click', waveIndex, opIndex, $event)"
   >
+    <!-- Drag Handle -->
+    <div class="drag-handle" :class="{ 'dark-theme': theme === 'dark' }">
+      <div class="drag-dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    </div>
     <!-- Time Input with Delete Button -->
     <div class="operation-row">
       <span class="row-label">时间:</span>
@@ -235,6 +246,7 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
   cursor: pointer;
+  position: relative;
 }
 
 .operation-card:hover {
@@ -283,6 +295,65 @@ export default {
   background-color: rgba(13, 110, 253, 0.2) !important;
   border-color: rgba(13, 110, 253, 0.6) !important;
   box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.35) !important;
+}
+
+/* Drag Handle Styles */
+.drag-handle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  cursor: grab;
+  opacity: 0.3;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.drag-handle:hover {
+  opacity: 0.7;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.drag-dots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.dot {
+  width: 2px;
+  height: 2px;
+  background-color: #6c757d;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.drag-handle:hover .dot {
+  background-color: #495057;
+}
+
+.drag-handle.dark-theme .dot {
+  background-color: #adb5bd;
+}
+
+.drag-handle.dark-theme:hover .dot {
+  background-color: #f8f9fa;
+}
+
+.operation-card:hover .drag-handle {
+  opacity: 0.6;
+}
+
+.operation-card.selected .drag-handle {
+  opacity: 0.8;
 }
 
 .operation-row {
