@@ -437,6 +437,14 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   };
   
   const showToast = (message, type = 'success') => {
+    // Remove any existing toast notifications
+    const existingToasts = document.querySelectorAll('.toast-notification');
+    existingToasts.forEach(toast => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    });
+    
     // Simple notification implementation
     // Create a temporary notification element
     const notification = document.createElement('div');
