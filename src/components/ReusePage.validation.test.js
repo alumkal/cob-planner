@@ -14,6 +14,10 @@ import {
   validateWaveDuration
 } from '../utils/validation.js';
 
+// Import store modules for testing
+import clipboardModule from '../store/modules/clipboard.js';
+import selectionModule from '../store/modules/selection.js';
+
 // Create a minimal store for testing
 const createTestStore = () => {
   return createStore({
@@ -65,7 +69,9 @@ const createTestStore = () => {
           removeOperation() {},
           updateOperation() {}
         }
-      }
+      },
+      clipboard: clipboardModule,
+      selection: selectionModule
     }
   });
 };

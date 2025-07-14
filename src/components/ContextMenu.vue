@@ -159,7 +159,7 @@ export default {
     }
   },
   setup() {
-    const copyPasteComposable = useCopyPaste();
+    const copyPasteComposable = useCopyPaste(false); // Disable keyboard shortcuts in context menu
     return {
       copyPasteComposable
     };

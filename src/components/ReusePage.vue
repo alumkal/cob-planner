@@ -226,12 +226,12 @@ export default {
     // Perform initial validation
     this.validateAllInputs();
     
-    // Add click listener to close context menu
-    document.addEventListener('click', this.hideContextMenu);
+    // Add click listener to close context menu and handle outside clicks
+    document.addEventListener('click', this.handleDocumentClick);
   },
   beforeUnmount() {
     // Remove click listener
-    document.removeEventListener('click', this.hideContextMenu);
+    document.removeEventListener('click', this.handleDocumentClick);
   },
   computed: {
     rows() {
@@ -271,25 +271,20 @@ export default {
     handleOperationClick(waveIndex, opIndex) {
       // Handle case where this might be called with event object
       if (typeof waveIndex === 'object') {
-        console.log('Operation clicked via event:', waveIndex);
         return; // Ignore event-based calls
       }
-      console.log('Operation clicked:', waveIndex, opIndex);
       this.$store.dispatch('selection/toggleOperationSelection', { waveIndex, opIndex });
     },
     
     handleWaveClick(waveIndex) {
       // Handle case where this might be called with event object
       if (typeof waveIndex === 'object') {
-        console.log('Wave clicked via event:', waveIndex);
         return; // Ignore event-based calls
       }
-      console.log('Wave clicked:', waveIndex);
       this.$store.dispatch('selection/toggleWaveSelection', { waveIndex });
     },
     
     handleGridClick(event, waveIndex) {
-      console.log('Grid clicked:', event.target, waveIndex);
       // Check if the click target is within an operation card or add button
       const target = event.target;
       const operationCard = target.closest('.operation-card');
@@ -297,12 +292,10 @@ export default {
       
       // If we clicked on an operation card or add button, don't handle it here
       if (operationCard || addButton) {
-        console.log('Ignoring click on operation card or add button');
         return;
       }
       
       // Click on empty space in grid - select the wave
-      console.log('Selecting wave from grid click:', waveIndex);
       this.$store.dispatch('selection/selectWave', { waveIndex });
     },
     
@@ -564,6 +557,17 @@ export default {
     
     hideContextMenu() {
       this.contextMenu.visible = false;
+    },
+    
+    handleDocumentClick(event) {
+      // Close context menu
+      this.hideContextMenu();
+      
+      // Only clear selection if click is outside the reuse page
+      const reusePage = event.target.closest('.reuse-page');
+      if (!reusePage) {
+        this.$store.dispatch('selection/clearSelection');
+      }
     },
     
     handleGridRightClick(event, waveIndex) {

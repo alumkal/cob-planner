@@ -4,11 +4,10 @@
  */
 
 const state = () => ({
-  // Current selection state
   selection: {
     type: null, // 'operation' | 'wave' | null
-    waveIndex: null, // Index of selected wave
-    opIndex: null // Index of selected operation (null for wave selection)
+    waveIndex: null,
+    opIndex: null // only used for operation type
   }
 });
 
@@ -32,35 +31,37 @@ const getters = {
            state.selection.waveIndex === waveIndex;
   },
   
-  // Get selected operation
-  selectedOperation: (state, getters, rootState, rootGetters) => {
-    if (state.selection.type !== 'operation') return null;
-    
-    const waves = rootGetters['waves/waves'];
-    const wave = waves[state.selection.waveIndex];
-    if (!wave) return null;
-    
-    return wave.operations[state.selection.opIndex] || null;
-  },
-  
-  // Get selected wave
-  selectedWave: (state, getters, rootState, rootGetters) => {
-    if (state.selection.type !== 'wave') return null;
-    
-    const waves = rootGetters['waves/waves'];
-    return waves[state.selection.waveIndex] || null;
-  },
-  
   // Get selection info for copy operations
-  selectionInfo: (state, getters) => {
-    if (!getters.hasSelection) return null;
+  selectionInfo: (state, getters, rootState, rootGetters) => {
+    if (!state.selection.type) return null;
     
-    return {
-      type: state.selection.type,
-      waveIndex: state.selection.waveIndex,
-      opIndex: state.selection.opIndex,
-      item: state.selection.type === 'operation' ? getters.selectedOperation : getters.selectedWave
-    };
+    if (state.selection.type === 'operation') {
+      const waves = rootGetters['waves/waves'];
+      const wave = waves[state.selection.waveIndex];
+      if (!wave) return null;
+      
+      const operation = wave.operations[state.selection.opIndex];
+      if (!operation) return null;
+      
+      return {
+        type: 'operation',
+        waveIndex: state.selection.waveIndex,
+        opIndex: state.selection.opIndex,
+        operation: operation
+      };
+    } else if (state.selection.type === 'wave') {
+      const waves = rootGetters['waves/waves'];
+      const wave = waves[state.selection.waveIndex];
+      if (!wave) return null;
+      
+      return {
+        type: 'wave',
+        waveIndex: state.selection.waveIndex,
+        wave: wave
+      };
+    }
+    
+    return null;
   }
 };
 

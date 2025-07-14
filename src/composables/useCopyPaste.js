@@ -6,7 +6,7 @@
 import { computed, onMounted, onUnmounted } from 'vue';
 import { useStore } from 'vuex';
 
-export function useCopyPaste() {
+export function useCopyPaste(enableKeyboardShortcuts = true) {
   const store = useStore();
   
   // Computed properties for clipboard state
@@ -147,7 +147,15 @@ export function useCopyPaste() {
   
   // Keyboard shortcuts handler
   const handleKeyboardShortcuts = (event) => {
-    // Only handle if Ctrl or Cmd is pressed
+    // Handle Escape key (no modifier needed)
+    if (event.key === 'Escape') {
+      clearClipboard();
+      clearSelection();
+      event.preventDefault();
+      return;
+    }
+    
+    // Only handle other keys if Ctrl or Cmd is pressed
     if (!(event.ctrlKey || event.metaKey)) return;
     
     switch (event.key.toLowerCase()) {
@@ -162,13 +170,6 @@ export function useCopyPaste() {
         handlePasteShortcut();
         event.preventDefault();
         break;
-        
-      case 'escape':
-        // Clear clipboard and selection
-        clearClipboard();
-        clearSelection();
-        event.preventDefault();
-        break;
     }
   };
   
@@ -177,10 +178,10 @@ export function useCopyPaste() {
     const selection = store.getters['selection/selectionInfo'];
     if (!selection) return;
     
-    if (selection.type === 'operation' && selection.item) {
-      copyOperation(selection.item, selection.waveIndex, selection.opIndex);
-    } else if (selection.type === 'wave' && selection.item) {
-      copyWave(selection.item, selection.waveIndex);
+    if (selection.type === 'operation' && selection.operation) {
+      copyOperation(selection.operation, selection.waveIndex, selection.opIndex);
+    } else if (selection.type === 'wave' && selection.wave) {
+      copyWave(selection.wave, selection.waveIndex);
     }
   };
   
@@ -283,16 +284,20 @@ export function useCopyPaste() {
     store.dispatch('clipboard/cleanupOldClipboard');
   };
   
-  // Setup keyboard listeners
+  // Setup keyboard listeners (only if enabled)
   onMounted(() => {
-    document.addEventListener('keydown', handleKeyboardShortcuts);
+    if (enableKeyboardShortcuts) {
+      document.addEventListener('keydown', handleKeyboardShortcuts);
+    }
     
     // Cleanup old clipboard data on mount
     cleanupClipboard();
   });
   
   onUnmounted(() => {
-    document.removeEventListener('keydown', handleKeyboardShortcuts);
+    if (enableKeyboardShortcuts) {
+      document.removeEventListener('keydown', handleKeyboardShortcuts);
+    }
   });
   
   return {

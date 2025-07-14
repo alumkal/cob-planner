@@ -78,6 +78,12 @@ const mutations = {
       setWaves(state.waves);
     }
   },
+  INSERT_OPERATION(state, { waveIndex, opIndex, operation }) {
+    if (state.waves[waveIndex]) {
+      state.waves[waveIndex].operations.splice(opIndex, 0, operation);
+      setWaves(state.waves);
+    }
+  },
   REMOVE_OPERATION(state, { waveIndex, opIndex }) {
     if (state.waves[waveIndex] && state.waves[waveIndex].operations[opIndex]) {
       state.waves[waveIndex].operations.splice(opIndex, 1);
@@ -124,6 +130,9 @@ const actions = {
       waveIndex: payload.waveIndex,
       operation: defaultOperation
     });
+  },
+  insertOperation({ commit }, payload) {
+    commit('INSERT_OPERATION', payload);
   },
   removeOperation({ commit }, payload) {
     commit('REMOVE_OPERATION', payload);
