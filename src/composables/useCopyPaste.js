@@ -41,44 +41,113 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     showToast('波次已复制到剪贴板');
   };
   
+  // Copy multiple operations
+  const copyMultipleOperations = (selections) => {
+    const operations = selections.map(sel => ({
+      operation: sel.operation,
+      waveIndex: sel.waveIndex,
+      opIndex: sel.opIndex
+    }));
+    
+    store.dispatch('clipboard/copyOperations', { operations });
+    
+    // Show visual feedback
+    showToast(`已复制 ${operations.length} 个操作到剪贴板`);
+  };
+  
+  // Copy multiple waves
+  const copyMultipleWaves = (selections) => {
+    const waves = selections.map(sel => ({
+      wave: sel.wave,
+      waveIndex: sel.waveIndex
+    }));
+    
+    store.dispatch('clipboard/copyWaves', { waves });
+    
+    // Show visual feedback
+    showToast(`已复制 ${waves.length} 个波次到剪贴板`);
+  };
+  
   // Paste operations
   const pasteOperation = async (targetWaveIndex, targetOpIndex = null) => {
     const clipboardData = await store.dispatch('clipboard/getClipboardForPaste');
     
-    if (!clipboardData || clipboardData.type !== 'operation') {
-      showToast('剪贴板中没有可粘贴的操作', 'error');
+    if (!clipboardData) {
+      showToast('剪贴板中没有可粘贴的内容', 'error');
       return false;
     }
     
+    // Handle multiple operations
+    if (clipboardData.isMultiple && clipboardData.type === 'operations') {
+      return await pasteMultipleOperations(targetWaveIndex, clipboardData.items);
+    }
+    
+    // Handle single operation (legacy)
+    if (!clipboardData.isMultiple && clipboardData.type === 'operation') {
+      try {
+        // Create a new operation from clipboard data
+        const newOperation = {
+          ...clipboardData.data,
+          // Generate a new unique identifier if needed
+          id: generateOperationId()
+        };
+        
+        // Add the operation to the target wave
+        if (targetOpIndex !== null) {
+          // Insert at specific position
+          await store.dispatch('waves/insertOperation', {
+            waveIndex: targetWaveIndex,
+            opIndex: targetOpIndex,
+            operation: newOperation
+          });
+        } else {
+          // Add at the end of the wave
+          await store.dispatch('waves/addOperation', {
+            waveIndex: targetWaveIndex,
+            operation: newOperation
+          });
+        }
+        
+        showToast('操作已粘贴');
+        return true;
+      } catch (error) {
+        console.error('Error pasting operation:', error);
+        showToast('粘贴操作失败', 'error');
+        return false;
+      }
+    }
+    
+    showToast('剪贴板中没有可粘贴的操作', 'error');
+    return false;
+  };
+  
+  // Paste multiple operations
+  const pasteMultipleOperations = async (targetWaveIndex, operations) => {
     try {
-      // Create a new operation from clipboard data
-      const newOperation = {
-        ...clipboardData.data,
-        // Generate a new unique identifier if needed
-        id: generateOperationId()
-      };
+      let successCount = 0;
       
-      // Add the operation to the target wave
-      if (targetOpIndex !== null) {
-        // Insert at specific position
-        await store.dispatch('waves/insertOperation', {
-          waveIndex: targetWaveIndex,
-          opIndex: targetOpIndex,
-          operation: newOperation
-        });
-      } else {
-        // Add at the end of the wave
+      for (const opData of operations) {
+        // Create a new operation from clipboard data
+        const newOperation = {
+          ...opData.operation,
+          // Generate a new unique identifier
+          id: generateOperationId()
+        };
+        
+        // Add the operation to the target wave
         await store.dispatch('waves/addOperation', {
           waveIndex: targetWaveIndex,
           operation: newOperation
         });
+        
+        successCount++;
       }
       
-      showToast('操作已粘贴');
+      showToast(`已粘贴 ${successCount} 个操作`);
       return true;
     } catch (error) {
-      console.error('Error pasting operation:', error);
-      showToast('粘贴操作失败', 'error');
+      console.error('Error pasting multiple operations:', error);
+      showToast('粘贴多个操作失败', 'error');
       return false;
     }
   };
@@ -86,40 +155,92 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   const pasteWave = async (targetIndex = null) => {
     const clipboardData = await store.dispatch('clipboard/getClipboardForPaste');
     
-    if (!clipboardData || clipboardData.type !== 'wave') {
-      showToast('剪贴板中没有可粘贴的波次', 'error');
+    if (!clipboardData) {
+      showToast('剪贴板中没有可粘贴的内容', 'error');
       return false;
     }
     
+    // Handle multiple waves
+    if (clipboardData.isMultiple && clipboardData.type === 'waves') {
+      return await pasteMultipleWaves(clipboardData.items);
+    }
+    
+    // Handle single wave (legacy)
+    if (!clipboardData.isMultiple && clipboardData.type === 'wave') {
+      try {
+        // Create a new wave from clipboard data
+        const newWave = {
+          ...clipboardData.data,
+          // Deep clone operations to avoid reference issues
+          operations: clipboardData.data.operations.map(op => ({
+            ...op,
+            id: generateOperationId()
+          }))
+        };
+        
+        // Add the wave
+        await store.dispatch('waves/addWave');
+        
+        // Get the new wave index (last wave)
+        const waves = store.getters['waves/waves'];
+        const newWaveIndex = waves.length - 1;
+        
+        // Update the wave with clipboard data
+        await store.dispatch('waves/updateWave', {
+          index: newWaveIndex,
+          wave: newWave
+        });
+        
+        showToast('波次已粘贴');
+        return true;
+      } catch (error) {
+        console.error('Error pasting wave:', error);
+        showToast('粘贴波次失败', 'error');
+        return false;
+      }
+    }
+    
+    showToast('剪贴板中没有可粘贴的波次', 'error');
+    return false;
+  };
+  
+  // Paste multiple waves
+  const pasteMultipleWaves = async (waves) => {
     try {
-      // Create a new wave from clipboard data
-      const newWave = {
-        ...clipboardData.data,
-        // Deep clone operations to avoid reference issues
-        operations: clipboardData.data.operations.map(op => ({
-          ...op,
-          id: generateOperationId()
-        }))
-      };
+      let successCount = 0;
       
-      // Add the wave
-      await store.dispatch('waves/addWave');
+      for (const waveData of waves) {
+        // Create a new wave from clipboard data
+        const newWave = {
+          ...waveData.wave,
+          // Deep clone operations to avoid reference issues
+          operations: waveData.wave.operations.map(op => ({
+            ...op,
+            id: generateOperationId()
+          }))
+        };
+        
+        // Add the wave
+        await store.dispatch('waves/addWave');
+        
+        // Get the new wave index (last wave)
+        const currentWaves = store.getters['waves/waves'];
+        const newWaveIndex = currentWaves.length - 1;
+        
+        // Update the wave with clipboard data
+        await store.dispatch('waves/updateWave', {
+          index: newWaveIndex,
+          wave: newWave
+        });
+        
+        successCount++;
+      }
       
-      // Get the new wave index (last wave)
-      const waves = store.getters['waves/waves'];
-      const newWaveIndex = waves.length - 1;
-      
-      // Update the wave with clipboard data
-      await store.dispatch('waves/updateWave', {
-        index: newWaveIndex,
-        wave: newWave
-      });
-      
-      showToast('波次已粘贴');
+      showToast(`已粘贴 ${successCount} 个波次`);
       return true;
     } catch (error) {
-      console.error('Error pasting wave:', error);
-      showToast('粘贴波次失败', 'error');
+      console.error('Error pasting multiple waves:', error);
+      showToast('粘贴多个波次失败', 'error');
       return false;
     }
   };
@@ -175,13 +296,25 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   
   // Handle copy keyboard shortcut
   const handleCopyShortcut = () => {
-    const selection = store.getters['selection/selectionInfo'];
-    if (!selection) return;
+    // Get all selected items for multiple selection support
+    const allSelections = store.getters['selection/allSelectionInfo'];
+    if (!allSelections || allSelections.length === 0) return;
     
-    if (selection.type === 'operation' && selection.operation) {
-      copyOperation(selection.operation, selection.waveIndex, selection.opIndex);
-    } else if (selection.type === 'wave' && selection.wave) {
-      copyWave(selection.wave, selection.waveIndex);
+    if (allSelections.length === 1) {
+      // Single item - use existing single copy logic
+      const selection = allSelections[0];
+      if (selection.type === 'operation' && selection.operation) {
+        copyOperation(selection.operation, selection.waveIndex, selection.opIndex);
+      } else if (selection.type === 'wave' && selection.wave) {
+        copyWave(selection.wave, selection.waveIndex);
+      }
+    } else {
+      // Multiple items - use new multiple copy logic
+      if (allSelections[0].type === 'operation') {
+        copyMultipleOperations(allSelections);
+      } else if (allSelections[0].type === 'wave') {
+        copyMultipleWaves(allSelections);
+      }
     }
   };
   
@@ -192,7 +325,8 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     
     const selection = store.getters['selection/currentSelection'];
     
-    if (clipboardData.type === 'operation') {
+    // Handle operations (single or multiple)
+    if (clipboardData.type === 'operation' || clipboardData.type === 'operations') {
       // Determine target wave index
       let targetWaveIndex = null;
       
@@ -210,7 +344,9 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
       if (targetWaveIndex !== null) {
         await pasteOperation(targetWaveIndex);
       }
-    } else if (clipboardData.type === 'wave') {
+    } 
+    // Handle waves (single or multiple)
+    else if (clipboardData.type === 'wave' || clipboardData.type === 'waves') {
       await pasteWave();
     }
   };
@@ -312,8 +448,12 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     // Actions
     copyOperation,
     copyWave,
+    copyMultipleOperations,
+    copyMultipleWaves,
     pasteOperation,
     pasteWave,
+    pasteMultipleOperations,
+    pasteMultipleWaves,
     duplicateOperation,
     duplicateWave,
     clearClipboard,

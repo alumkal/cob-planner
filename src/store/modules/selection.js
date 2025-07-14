@@ -1,167 +1,323 @@
 /**
  * Selection module for Vuex store
  * Manages currently selected operations and waves for keyboard shortcuts and visual feedback
+ * Supports multiple selection with Ctrl+click, but prevents mixing waves and operations
  */
 
 const state = () => ({
-  selection: {
-    type: null, // 'operation' | 'wave' | null
-    waveIndex: null,
-    opIndex: null // only used for operation type
-  }
+  selectedOperations: [], // Array of {waveIndex, opIndex}
+  selectedWaves: [], // Array of waveIndex
+  selectionType: null // 'operations' | 'waves' | null
 });
 
 const getters = {
-  // Get current selection
-  currentSelection: (state) => state.selection,
+  // Get current selection (legacy getter for compatibility)
+  currentSelection: (state) => ({
+    type: state.selectionType === 'operations' ? 'operation' : 
+          state.selectionType === 'waves' ? 'wave' : null,
+    waveIndex: state.selectionType === 'operations' && state.selectedOperations.length > 0 
+               ? state.selectedOperations[0].waveIndex
+               : state.selectionType === 'waves' && state.selectedWaves.length > 0
+               ? state.selectedWaves[0] : null,
+    opIndex: state.selectionType === 'operations' && state.selectedOperations.length > 0 
+             ? state.selectedOperations[0].opIndex : null
+  }),
   
   // Check if anything is selected
-  hasSelection: (state) => state.selection.type !== null,
+  hasSelection: (state) => state.selectedOperations.length > 0 || state.selectedWaves.length > 0,
+  
+  // Check if multiple items are selected
+  hasMultipleSelection: (state) => 
+    state.selectedOperations.length > 1 || state.selectedWaves.length > 1,
+  
+  // Get all selected operations
+  selectedOperations: (state) => state.selectedOperations,
+  
+  // Get all selected waves
+  selectedWaves: (state) => state.selectedWaves,
+  
+  // Get selection type
+  selectionType: (state) => state.selectionType,
   
   // Check if a specific operation is selected
   isOperationSelected: (state) => (waveIndex, opIndex) => {
-    return state.selection.type === 'operation' &&
-           state.selection.waveIndex === waveIndex &&
-           state.selection.opIndex === opIndex;
+    return state.selectedOperations.some(op => 
+      op.waveIndex === waveIndex && op.opIndex === opIndex
+    );
   },
   
   // Check if a specific wave is selected
   isWaveSelected: (state) => (waveIndex) => {
-    return state.selection.type === 'wave' &&
-           state.selection.waveIndex === waveIndex;
+    return state.selectedWaves.includes(waveIndex);
   },
   
-  // Get selection info for copy operations
+  // Get selection info for copy operations (returns first selected item for legacy support)
   selectionInfo: (state, getters, rootState, rootGetters) => {
-    if (!state.selection.type) return null;
+    if (!state.selectionType) return null;
     
-    if (state.selection.type === 'operation') {
+    if (state.selectionType === 'operations' && state.selectedOperations.length > 0) {
+      const firstOp = state.selectedOperations[0];
       const waves = rootGetters['waves/waves'];
-      const wave = waves[state.selection.waveIndex];
+      const wave = waves[firstOp.waveIndex];
       if (!wave) return null;
       
-      const operation = wave.operations[state.selection.opIndex];
+      const operation = wave.operations[firstOp.opIndex];
       if (!operation) return null;
       
       return {
         type: 'operation',
-        waveIndex: state.selection.waveIndex,
-        opIndex: state.selection.opIndex,
+        waveIndex: firstOp.waveIndex,
+        opIndex: firstOp.opIndex,
         operation: operation
       };
-    } else if (state.selection.type === 'wave') {
+    } else if (state.selectionType === 'waves' && state.selectedWaves.length > 0) {
+      const firstWaveIndex = state.selectedWaves[0];
       const waves = rootGetters['waves/waves'];
-      const wave = waves[state.selection.waveIndex];
+      const wave = waves[firstWaveIndex];
       if (!wave) return null;
       
       return {
         type: 'wave',
-        waveIndex: state.selection.waveIndex,
+        waveIndex: firstWaveIndex,
         wave: wave
       };
     }
     
     return null;
+  },
+  
+  // Get all selection info for operations that support multiple items
+  allSelectionInfo: (state, getters, rootState, rootGetters) => {
+    const waves = rootGetters['waves/waves'];
+    const result = [];
+    
+    if (state.selectionType === 'operations') {
+      state.selectedOperations.forEach(op => {
+        const wave = waves[op.waveIndex];
+        if (wave && wave.operations[op.opIndex]) {
+          result.push({
+            type: 'operation',
+            waveIndex: op.waveIndex,
+            opIndex: op.opIndex,
+            operation: wave.operations[op.opIndex]
+          });
+        }
+      });
+    } else if (state.selectionType === 'waves') {
+      state.selectedWaves.forEach(waveIndex => {
+        const wave = waves[waveIndex];
+        if (wave) {
+          result.push({
+            type: 'wave',
+            waveIndex: waveIndex,
+            wave: wave
+          });
+        }
+      });
+    }
+    
+    return result;
   }
 };
 
 const mutations = {
-  // Select an operation
-  SELECT_OPERATION(state, { waveIndex, opIndex }) {
-    state.selection = {
-      type: 'operation',
-      waveIndex,
-      opIndex
-    };
-  },
-  
-  // Select a wave
-  SELECT_WAVE(state, { waveIndex }) {
-    state.selection = {
-      type: 'wave',
-      waveIndex,
-      opIndex: null
-    };
-  },
-  
-  // Clear selection
+  // Clear all selections
   CLEAR_SELECTION(state) {
-    state.selection = {
-      type: null,
-      waveIndex: null,
-      opIndex: null
-    };
+    state.selectedOperations = [];
+    state.selectedWaves = [];
+    state.selectionType = null;
+  },
+  
+  // Add operation to selection
+  ADD_OPERATION_TO_SELECTION(state, { waveIndex, opIndex }) {
+    // Clear waves if selecting operations (prevent mixing)
+    if (state.selectionType === 'waves') {
+      state.selectedWaves = [];
+    }
+    
+    state.selectionType = 'operations';
+    
+    // Add if not already selected
+    const existing = state.selectedOperations.find(op => 
+      op.waveIndex === waveIndex && op.opIndex === opIndex
+    );
+    if (!existing) {
+      state.selectedOperations.push({ waveIndex, opIndex });
+    }
+  },
+  
+  // Remove operation from selection
+  REMOVE_OPERATION_FROM_SELECTION(state, { waveIndex, opIndex }) {
+    state.selectedOperations = state.selectedOperations.filter(op => 
+      !(op.waveIndex === waveIndex && op.opIndex === opIndex)
+    );
+    
+    // Clear selection type if no items left
+    if (state.selectedOperations.length === 0) {
+      state.selectionType = null;
+    }
+  },
+  
+  // Add wave to selection
+  ADD_WAVE_TO_SELECTION(state, { waveIndex }) {
+    // Clear operations if selecting waves (prevent mixing)
+    if (state.selectionType === 'operations') {
+      state.selectedOperations = [];
+    }
+    
+    state.selectionType = 'waves';
+    
+    // Add if not already selected
+    if (!state.selectedWaves.includes(waveIndex)) {
+      state.selectedWaves.push(waveIndex);
+    }
+  },
+  
+  // Remove wave from selection
+  REMOVE_WAVE_FROM_SELECTION(state, { waveIndex }) {
+    state.selectedWaves = state.selectedWaves.filter(w => w !== waveIndex);
+    
+    // Clear selection type if no items left
+    if (state.selectedWaves.length === 0) {
+      state.selectionType = null;
+    }
+  },
+  
+  // Select single operation (clears all other selections)
+  SELECT_OPERATION(state, { waveIndex, opIndex }) {
+    state.selectedOperations = [{ waveIndex, opIndex }];
+    state.selectedWaves = [];
+    state.selectionType = 'operations';
+  },
+  
+  // Select single wave (clears all other selections) 
+  SELECT_WAVE(state, { waveIndex }) {
+    state.selectedWaves = [waveIndex];
+    state.selectedOperations = [];
+    state.selectionType = 'waves';
   },
   
   // Update selection indices when items are removed
   UPDATE_SELECTION_AFTER_REMOVAL(state, { type, removedWaveIndex, removedOpIndex }) {
-    if (!state.selection.type) return;
+    if (type === 'wave') {
+      // Remove the specific wave if it's selected
+      state.selectedWaves = state.selectedWaves.filter(w => w !== removedWaveIndex);
+      
+      // Adjust indices for waves after the removed wave
+      state.selectedWaves = state.selectedWaves.map(w => 
+        w > removedWaveIndex ? w - 1 : w
+      );
+      
+      // Remove operations from the removed wave
+      state.selectedOperations = state.selectedOperations.filter(op => 
+        op.waveIndex !== removedWaveIndex
+      );
+      
+      // Adjust wave indices for operations after the removed wave
+      state.selectedOperations.forEach(op => {
+        if (op.waveIndex > removedWaveIndex) {
+          op.waveIndex--;
+        }
+      });
+    } else if (type === 'operation') {
+      // Remove the specific operation if it's selected
+      state.selectedOperations = state.selectedOperations.filter(op => 
+        !(op.waveIndex === removedWaveIndex && op.opIndex === removedOpIndex)
+      );
+      
+      // Adjust operation indices for operations after the removed operation in the same wave
+      state.selectedOperations.forEach(op => {
+        if (op.waveIndex === removedWaveIndex && op.opIndex > removedOpIndex) {
+          op.opIndex--;
+        }
+      });
+    }
     
-    if (type === 'wave' && state.selection.waveIndex === removedWaveIndex) {
-      // Selected wave was removed, clear selection
-      state.selection = {
-        type: null,
-        waveIndex: null,
-        opIndex: null
-      };
-    } else if (type === 'wave' && state.selection.waveIndex > removedWaveIndex) {
-      // Wave was removed before selected wave, adjust index
-      state.selection.waveIndex--;
-    } else if (type === 'operation' && 
-               state.selection.type === 'operation' &&
-               state.selection.waveIndex === removedWaveIndex &&
-               state.selection.opIndex === removedOpIndex) {
-      // Selected operation was removed, clear selection
-      state.selection = {
-        type: null,
-        waveIndex: null,
-        opIndex: null
-      };
-    } else if (type === 'operation' && 
-               state.selection.type === 'operation' &&
-               state.selection.waveIndex === removedWaveIndex &&
-               state.selection.opIndex > removedOpIndex) {
-      // Operation was removed before selected operation, adjust index
-      state.selection.opIndex--;
+    // Clear selection type if no items left
+    if (state.selectedOperations.length === 0 && state.selectedWaves.length === 0) {
+      state.selectionType = null;
     }
   }
 };
 
 const actions = {
-  // Select an operation
+  // Select single operation (clears all other selections)
   selectOperation({ commit }, { waveIndex, opIndex }) {
     commit('SELECT_OPERATION', { waveIndex, opIndex });
   },
   
-  // Select a wave
+  // Select single wave (clears all other selections)
   selectWave({ commit }, { waveIndex }) {
     commit('SELECT_WAVE', { waveIndex });
   },
   
-  // Clear selection
+  // Clear all selections
   clearSelection({ commit }) {
     commit('CLEAR_SELECTION');
   },
   
-  // Toggle selection - if same item is clicked, deselect it
-  toggleOperationSelection({ state, commit }, { waveIndex, opIndex }) {
-    if (state.selection.type === 'operation' &&
-        state.selection.waveIndex === waveIndex &&
-        state.selection.opIndex === opIndex) {
-      commit('CLEAR_SELECTION');
+  // Multiple selection actions
+  
+  // Toggle operation selection with Ctrl+click support
+  toggleOperationSelection({ state, commit, getters }, { waveIndex, opIndex, isCtrlClick = false }) {
+    const isSelected = getters.isOperationSelected(waveIndex, opIndex);
+    
+    if (isCtrlClick) {
+      // Ctrl+click: add/remove from selection
+      if (isSelected) {
+        commit('REMOVE_OPERATION_FROM_SELECTION', { waveIndex, opIndex });
+      } else {
+        commit('ADD_OPERATION_TO_SELECTION', { waveIndex, opIndex });
+      }
     } else {
-      commit('SELECT_OPERATION', { waveIndex, opIndex });
+      // Normal click: single selection or deselect if it's the only selected item
+      if (isSelected && state.selectedOperations.length === 1) {
+        commit('CLEAR_SELECTION');
+      } else {
+        commit('SELECT_OPERATION', { waveIndex, opIndex });
+      }
     }
   },
   
-  // Toggle wave selection
-  toggleWaveSelection({ state, commit }, { waveIndex }) {
-    if (state.selection.type === 'wave' &&
-        state.selection.waveIndex === waveIndex) {
-      commit('CLEAR_SELECTION');
+  // Toggle wave selection with Ctrl+click support
+  toggleWaveSelection({ state, commit, getters }, { waveIndex, isCtrlClick = false }) {
+    const isSelected = getters.isWaveSelected(waveIndex);
+    
+    if (isCtrlClick) {
+      // Ctrl+click: add/remove from selection
+      if (isSelected) {
+        commit('REMOVE_WAVE_FROM_SELECTION', { waveIndex });
+      } else {
+        commit('ADD_WAVE_TO_SELECTION', { waveIndex });
+      }
     } else {
-      commit('SELECT_WAVE', { waveIndex });
+      // Normal click: single selection or deselect if it's the only selected item
+      if (isSelected && state.selectedWaves.length === 1) {
+        commit('CLEAR_SELECTION');
+      } else {
+        commit('SELECT_WAVE', { waveIndex });
+      }
     }
+  },
+  
+  // Add operation to multi-selection
+  addOperationToSelection({ commit }, { waveIndex, opIndex }) {
+    commit('ADD_OPERATION_TO_SELECTION', { waveIndex, opIndex });
+  },
+  
+  // Remove operation from multi-selection  
+  removeOperationFromSelection({ commit }, { waveIndex, opIndex }) {
+    commit('REMOVE_OPERATION_FROM_SELECTION', { waveIndex, opIndex });
+  },
+  
+  // Add wave to multi-selection
+  addWaveToSelection({ commit }, { waveIndex }) {
+    commit('ADD_WAVE_TO_SELECTION', { waveIndex });
+  },
+  
+  // Remove wave from multi-selection
+  removeWaveFromSelection({ commit }, { waveIndex }) {
+    commit('REMOVE_WAVE_FROM_SELECTION', { waveIndex });
   },
   
   // Handle removal updates

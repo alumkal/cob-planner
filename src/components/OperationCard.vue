@@ -5,7 +5,7 @@
     @mouseover="handleMouseOver"
     @mouseout="handleMouseOut"
     @contextmenu.prevent="handleRightClick"
-    @click.stop="$emit('click', waveIndex, opIndex)"
+    @click.stop="$emit('click', waveIndex, opIndex, $event)"
   >
     <!-- Time Input with Delete Button -->
     <div class="operation-row">

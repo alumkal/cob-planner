@@ -3,7 +3,7 @@
     class="wave-header" 
     :class="{ 'dark-theme': theme === 'dark', 'selected': isSelected }"
     @contextmenu.prevent="handleRightClick"
-    @click.stop="$emit('click', waveIndex)"
+    @click.stop="$emit('click', waveIndex, $event)"
   >
     <div class="wave-info">
       <h6 class="wave-title">波次 {{ waveIndex + 1 }}</h6>

@@ -268,20 +268,35 @@ export default {
     },
     
     // Click handlers for selection
-    handleOperationClick(waveIndex, opIndex) {
-      // Handle case where this might be called with event object
+    handleOperationClick(waveIndex, opIndex, event = null) {
+      // Handle case where this might be called with event object as first parameter
       if (typeof waveIndex === 'object') {
         return; // Ignore event-based calls
       }
-      this.$store.dispatch('selection/toggleOperationSelection', { waveIndex, opIndex });
+      
+      // Detect Ctrl+click (or Cmd+click on Mac)
+      const isCtrlClick = event && (event.ctrlKey || event.metaKey);
+      
+      this.$store.dispatch('selection/toggleOperationSelection', { 
+        waveIndex, 
+        opIndex, 
+        isCtrlClick 
+      });
     },
     
-    handleWaveClick(waveIndex) {
-      // Handle case where this might be called with event object
+    handleWaveClick(waveIndex, event = null) {
+      // Handle case where this might be called with event object as first parameter
       if (typeof waveIndex === 'object') {
         return; // Ignore event-based calls
       }
-      this.$store.dispatch('selection/toggleWaveSelection', { waveIndex });
+      
+      // Detect Ctrl+click (or Cmd+click on Mac)
+      const isCtrlClick = event && (event.ctrlKey || event.metaKey);
+      
+      this.$store.dispatch('selection/toggleWaveSelection', { 
+        waveIndex, 
+        isCtrlClick 
+      });
     },
     
     handleGridClick(event, waveIndex) {

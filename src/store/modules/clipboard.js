@@ -6,8 +6,9 @@
 const state = () => ({
   // Current clipboard content
   clipboard: {
-    type: null, // 'operation' | 'wave' | null
-    data: null, // The copied data
+    type: null, // 'operation' | 'wave' | 'operations' | 'waves' | null
+    data: null, // The copied data (single item or array for multiple)
+    items: [], // Array of copied items for multiple selection
     sourceInfo: null, // Source context information
     timestamp: null // When the copy was made
   },
@@ -18,14 +19,29 @@ const state = () => ({
 
 const getters = {
   // Check if clipboard has content
-  hasClipboardData: (state) => state.clipboard.type !== null && state.clipboard.data !== null,
+  hasClipboardData: (state) => state.clipboard.type !== null && 
+    (state.clipboard.data !== null || state.clipboard.items.length > 0),
   
   // Get clipboard content
   clipboardContent: (state) => state.clipboard,
   
   // Check if clipboard contains specific type
-  hasOperationInClipboard: (state) => state.clipboard.type === 'operation',
-  hasWaveInClipboard: (state) => state.clipboard.type === 'wave',
+  hasOperationInClipboard: (state) => 
+    state.clipboard.type === 'operation' || state.clipboard.type === 'operations',
+  hasWaveInClipboard: (state) => 
+    state.clipboard.type === 'wave' || state.clipboard.type === 'waves',
+  
+  // Check if clipboard has multiple items
+  hasMultipleClipboardItems: (state) => 
+    state.clipboard.type === 'operations' || state.clipboard.type === 'waves',
+  
+  // Get clipboard item count
+  clipboardItemCount: (state) => {
+    if (state.clipboard.type === 'operations' || state.clipboard.type === 'waves') {
+      return state.clipboard.items.length;
+    }
+    return state.clipboard.data ? 1 : 0;
+  },
   
   // Check if an item is currently copied (for visual feedback)
   isItemCopied: (state) => (itemId) => state.copiedItemId === itemId,
@@ -41,11 +57,26 @@ const getters = {
 };
 
 const mutations = {
-  // Set clipboard content
+  // Set clipboard content (single item)
   SET_CLIPBOARD(state, { type, data, sourceInfo = null }) {
     state.clipboard = {
       type,
       data: JSON.parse(JSON.stringify(data)), // Deep clone to prevent reference issues
+      items: [],
+      sourceInfo,
+      timestamp: Date.now()
+    };
+    
+    // Generate a visual feedback ID
+    state.copiedItemId = `${type}-${Date.now()}`;
+  },
+  
+  // Set multiple items in clipboard
+  SET_MULTIPLE_CLIPBOARD(state, { type, items, sourceInfo = null }) {
+    state.clipboard = {
+      type, // 'operations' or 'waves'
+      data: null,
+      items: JSON.parse(JSON.stringify(items)), // Deep clone array
       sourceInfo,
       timestamp: Date.now()
     };
@@ -59,6 +90,7 @@ const mutations = {
     state.clipboard = {
       type: null,
       data: null,
+      items: [],
       sourceInfo: null,
       timestamp: null
     };
@@ -92,6 +124,21 @@ const actions = {
     });
   },
   
+  // Copy multiple operations
+  copyOperations({ commit }, { operations }) {
+    // operations is an array of {operation, waveIndex, opIndex}
+    const sourceInfo = {
+      count: operations.length,
+      type: 'operations'
+    };
+    
+    commit('SET_MULTIPLE_CLIPBOARD', {
+      type: 'operations',
+      items: operations,
+      sourceInfo
+    });
+  },
+  
   // Copy a wave
   copyWave({ commit }, { wave, waveIndex }) {
     const sourceInfo = {
@@ -102,6 +149,21 @@ const actions = {
     commit('SET_CLIPBOARD', {
       type: 'wave',
       data: wave,
+      sourceInfo
+    });
+  },
+  
+  // Copy multiple waves
+  copyWaves({ commit }, { waves }) {
+    // waves is an array of {wave, waveIndex}
+    const sourceInfo = {
+      count: waves.length,
+      type: 'waves'
+    };
+    
+    commit('SET_MULTIPLE_CLIPBOARD', {
+      type: 'waves',
+      items: waves,
       sourceInfo
     });
   },
@@ -117,11 +179,24 @@ const actions = {
       return null;
     }
     
-    // Return a deep clone to prevent mutations
+    const clipboard = getters.clipboardContent;
+    
+    // Handle multiple items
+    if (clipboard.type === 'operations' || clipboard.type === 'waves') {
+      return {
+        type: clipboard.type,
+        items: JSON.parse(JSON.stringify(clipboard.items)),
+        sourceInfo: clipboard.sourceInfo,
+        isMultiple: true
+      };
+    }
+    
+    // Handle single item (legacy)
     return {
-      type: getters.clipboardContent.type,
-      data: JSON.parse(JSON.stringify(getters.clipboardContent.data)),
-      sourceInfo: getters.clipboardContent.sourceInfo
+      type: clipboard.type,
+      data: JSON.parse(JSON.stringify(clipboard.data)),
+      sourceInfo: clipboard.sourceInfo,
+      isMultiple: false
     };
   },
   
