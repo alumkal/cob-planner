@@ -329,7 +329,11 @@ export default {
     },
     
     handleWaveUpdate(payload) {
-      this.$store.dispatch('waves/updateWave', payload);
+      // Transform payload format from { waveIndex, wave } to { index, wave }
+      this.$store.dispatch('waves/updateWave', {
+        index: payload.waveIndex,
+        wave: payload.wave
+      });
       this.calculationResult = null;
     },
     

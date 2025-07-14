@@ -27,6 +27,7 @@
             type="text"
             class="form-control form-control-sm"
             v-model="localWave.notes"
+            @input="handleWaveUpdate"
             @change="handleWaveUpdate"
             @click.stop
             placeholder="在此输入备注信息..."

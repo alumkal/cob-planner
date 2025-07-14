@@ -62,10 +62,13 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
       waveIndex: sel.waveIndex
     }));
     
-    store.dispatch('clipboard/copyWaves', { waves });
+    // Sort waves by their original wave index to maintain correct order
+    const sortedWaves = [...waves].sort((a, b) => a.waveIndex - b.waveIndex);
+    
+    store.dispatch('clipboard/copyWaves', { waves: sortedWaves });
     
     // Show visual feedback
-    showToast(`已复制 ${waves.length} 个波次到剪贴板`);
+    showToast(`已复制 ${sortedWaves.length} 个波次到剪贴板`);
   };
   
   // Paste operations
@@ -207,9 +210,12 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   // Paste multiple waves
   const pasteMultipleWaves = async (waves) => {
     try {
+      // Sort waves by their original wave index to maintain correct order
+      const sortedWaves = [...waves].sort((a, b) => a.waveIndex - b.waveIndex);
+      
       let successCount = 0;
       
-      for (const waveData of waves) {
+      for (const waveData of sortedWaves) {
         // Create a new wave from clipboard data
         const newWave = {
           ...waveData.wave,
