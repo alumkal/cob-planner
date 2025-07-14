@@ -15,7 +15,7 @@ export function useUndoRedo() {
     get: () => ({
       fieldName: store.getters['field/fieldName'],
       rows: store.getters['field/rows'],
-      cannons: [...store.getters['field/cannons']] // Clone array to ensure reactivity
+      cannons: [...(store.getters['field/cannons'] || [])] // Clone array to ensure reactivity
     }),
     set: (value) => {
       // This will be handled by the restore action
@@ -25,7 +25,7 @@ export function useUndoRedo() {
   
   const wavesState = computed({
     get: () => ({
-      waves: [...store.getters['waves/waves']] // Clone array to ensure reactivity
+      waves: [...(store.getters['waves/waves'] || [])] // Clone array to ensure reactivity
     }),
     set: (value) => {
       // This will be handled by the restore action
@@ -60,13 +60,30 @@ export function useUndoRedo() {
   let lastFieldChange = 0;
   let lastWavesChange = 0;
   
-  watch(fieldState, () => {
-    lastFieldChange = Date.now();
-  }, { deep: true });
+  // Store unwatcher functions for pause/resume functionality
+  let fieldWatcher = null;
+  let wavesWatcher = null;
+  let trackingPaused = false;
   
-  watch(wavesState, () => {
-    lastWavesChange = Date.now();
-  }, { deep: true });
+  // Start tracking by default
+  const startTracking = () => {
+    if (!fieldWatcher) {
+      fieldWatcher = watch(fieldState, () => {
+        lastFieldChange = Date.now();
+      }, { deep: true });
+    }
+    
+    if (!wavesWatcher) {
+      wavesWatcher = watch(wavesState, () => {
+        lastWavesChange = Date.now();
+      }, { deep: true });
+    }
+    
+    trackingPaused = false;
+  };
+  
+  // Initialize tracking
+  startTracking();
   
   const undo = () => {
     // Determine which state was changed more recently and undo that
@@ -95,6 +112,58 @@ export function useUndoRedo() {
     wavesHistory.clear();
   };
   
+  // Batch operation support
+  const pauseTracking = () => {
+    if (trackingPaused) return;
+    
+    // Stop the watchers
+    if (fieldWatcher) {
+      fieldWatcher();
+      fieldWatcher = null;
+    }
+    if (wavesWatcher) {
+      wavesWatcher();
+      wavesWatcher = null;
+    }
+    
+    trackingPaused = true;
+  };
+  
+  const resumeTracking = () => {
+    if (!trackingPaused) return;
+    
+    startTracking();
+  };
+  
+  const commitBatchOperation = (type = 'waves') => {
+    if (!trackingPaused) {
+      console.warn('commitBatchOperation called while tracking is not paused');
+      return;
+    }
+    
+    // Manually trigger a state change to create a history entry
+    if (type === 'waves') {
+      lastWavesChange = Date.now();
+      // Force VueUse to capture current state by temporarily resuming
+      const currentState = wavesState.value;
+      resumeTracking();
+      // The watcher will fire and create a history entry
+      
+      // Small delay to ensure the history entry is created, then pause again if needed
+      setTimeout(() => {
+        pauseTracking();
+      }, 0);
+    } else if (type === 'field') {
+      lastFieldChange = Date.now();
+      const currentState = fieldState.value;
+      resumeTracking();
+      
+      setTimeout(() => {
+        pauseTracking();
+      }, 0);
+    }
+  };
+  
   return {
     // State
     canUndo,
@@ -104,6 +173,11 @@ export function useUndoRedo() {
     undo,
     redo,
     clearHistory,
+    
+    // Batch operation support
+    pauseTracking,
+    resumeTracking,
+    commitBatchOperation,
     
     // History details (for debugging or advanced features)
     fieldHistory: fieldHistory.history,

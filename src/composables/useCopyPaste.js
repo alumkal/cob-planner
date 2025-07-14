@@ -5,9 +5,11 @@
 
 import { computed, onMounted, onUnmounted } from 'vue';
 import { useStore } from 'vuex';
+import { useUndoRedo } from './useUndoRedo';
 
 export function useCopyPaste(enableKeyboardShortcuts = true) {
   const store = useStore();
+  const { pauseTracking, resumeTracking, commitBatchOperation } = useUndoRedo();
   
   // Computed properties for clipboard state
   const hasClipboardData = computed(() => store.getters['clipboard/hasClipboardData']);
@@ -127,28 +129,42 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   // Paste multiple operations
   const pasteMultipleOperations = async (targetWaveIndex, operations) => {
     try {
-      let successCount = 0;
+      // Pause undo/redo tracking for batch operation
+      pauseTracking();
       
-      for (const opData of operations) {
-        // Create a new operation from clipboard data
-        const newOperation = {
-          ...opData.operation,
-          // Generate a new unique identifier
-          id: generateOperationId()
-        };
-        
-        // Add the operation to the target wave
-        await store.dispatch('waves/addOperation', {
-          waveIndex: targetWaveIndex,
-          operation: newOperation
-        });
-        
-        successCount++;
+      // Get current waves state
+      const currentWaves = [...store.getters['waves/waves']];
+      
+      // Ensure target wave exists
+      if (!currentWaves[targetWaveIndex]) {
+        resumeTracking();
+        showToast('目标波次不存在', 'error');
+        return false;
       }
       
-      showToast(`已粘贴 ${successCount} 个操作`);
+      // Create new operations with unique IDs
+      const newOperations = operations.map(opData => ({
+        ...opData.operation,
+        id: generateOperationId()
+      }));
+      
+      // Add all operations to the target wave in the local copy
+      currentWaves[targetWaveIndex] = {
+        ...currentWaves[targetWaveIndex],
+        operations: [...currentWaves[targetWaveIndex].operations, ...newOperations]
+      };
+      
+      // Apply all changes at once using SET_WAVES mutation
+      await store.dispatch('waves/setWaves', currentWaves);
+      
+      // Resume tracking and commit the batch operation as single undo entry
+      resumeTracking();
+      
+      showToast(`已粘贴 ${newOperations.length} 个操作`);
       return true;
     } catch (error) {
+      // Ensure tracking is resumed even if error occurs
+      resumeTracking();
       console.error('Error pasting multiple operations:', error);
       showToast('粘贴多个操作失败', 'error');
       return false;
@@ -210,41 +226,39 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   // Paste multiple waves
   const pasteMultipleWaves = async (waves) => {
     try {
+      // Pause undo/redo tracking for batch operation
+      pauseTracking();
+      
       // Sort waves by their original wave index to maintain correct order
       const sortedWaves = [...waves].sort((a, b) => a.waveIndex - b.waveIndex);
       
-      let successCount = 0;
+      // Get current waves state
+      const currentWaves = [...store.getters['waves/waves']];
       
-      for (const waveData of sortedWaves) {
-        // Create a new wave from clipboard data
-        const newWave = {
-          ...waveData.wave,
-          // Deep clone operations to avoid reference issues
-          operations: waveData.wave.operations.map(op => ({
-            ...op,
-            id: generateOperationId()
-          }))
-        };
-        
-        // Add the wave
-        await store.dispatch('waves/addWave');
-        
-        // Get the new wave index (last wave)
-        const currentWaves = store.getters['waves/waves'];
-        const newWaveIndex = currentWaves.length - 1;
-        
-        // Update the wave with clipboard data
-        await store.dispatch('waves/updateWave', {
-          index: newWaveIndex,
-          wave: newWave
-        });
-        
-        successCount++;
-      }
+      // Create new waves with unique operation IDs
+      const newWaves = sortedWaves.map(waveData => ({
+        ...waveData.wave,
+        // Deep clone operations to avoid reference issues and generate new IDs
+        operations: waveData.wave.operations.map(op => ({
+          ...op,
+          id: generateOperationId()
+        }))
+      }));
       
-      showToast(`已粘贴 ${successCount} 个波次`);
+      // Add all new waves to the current waves array
+      const updatedWaves = [...currentWaves, ...newWaves];
+      
+      // Apply all changes at once using SET_WAVES mutation
+      await store.dispatch('waves/setWaves', updatedWaves);
+      
+      // Resume tracking and commit the batch operation as single undo entry
+      resumeTracking();
+      
+      showToast(`已粘贴 ${newWaves.length} 个波次`);
       return true;
     } catch (error) {
+      // Ensure tracking is resumed even if error occurs
+      resumeTracking();
       console.error('Error pasting multiple waves:', error);
       showToast('粘贴多个波次失败', 'error');
       return false;
@@ -348,12 +362,72 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
       }
       
       if (targetWaveIndex !== null) {
-        await pasteOperation(targetWaveIndex);
+        // Handle multiple operations directly
+        if (clipboardData.isMultiple && clipboardData.type === 'operations') {
+          await pasteMultipleOperations(targetWaveIndex, clipboardData.items);
+        }
+        // Handle single operation directly
+        else if (!clipboardData.isMultiple && clipboardData.type === 'operation') {
+          try {
+            // Create a new operation from clipboard data
+            const newOperation = {
+              ...clipboardData.data,
+              // Generate a new unique identifier if needed
+              id: generateOperationId()
+            };
+            
+            // Add the operation to the target wave
+            await store.dispatch('waves/addOperation', {
+              waveIndex: targetWaveIndex,
+              operation: newOperation
+            });
+            
+            showToast('操作已粘贴');
+          } catch (error) {
+            console.error('Error pasting operation:', error);
+            showToast('粘贴操作失败', 'error');
+          }
+        }
       }
     } 
     // Handle waves (single or multiple)
     else if (clipboardData.type === 'wave' || clipboardData.type === 'waves') {
-      await pasteWave();
+      // Handle multiple waves directly
+      if (clipboardData.isMultiple && clipboardData.type === 'waves') {
+        await pasteMultipleWaves(clipboardData.items);
+      }
+      // Handle single wave directly
+      else if (!clipboardData.isMultiple && clipboardData.type === 'wave') {
+        try {
+          // Create a new wave from clipboard data
+          const newWave = {
+            ...clipboardData.data,
+            // Deep clone operations to avoid reference issues
+            operations: clipboardData.data.operations.map(op => ({
+              ...op,
+              id: generateOperationId()
+            }))
+          };
+          
+          // Add the wave
+          await store.dispatch('waves/addWave');
+          
+          // Get the new wave index (last wave)
+          const waves = store.getters['waves/waves'];
+          const newWaveIndex = waves.length - 1;
+          
+          // Update the wave with clipboard data
+          await store.dispatch('waves/updateWave', {
+            index: newWaveIndex,
+            wave: newWave
+          });
+          
+          showToast('波次已粘贴');
+        } catch (error) {
+          console.error('Error pasting wave:', error);
+          showToast('粘贴波次失败', 'error');
+        }
+      }
     }
   };
   

@@ -99,6 +99,14 @@ The project uses **Vitest** for unit testing:
 
 Run tests with `npm test` or use the UI with `npm run test:ui`.
 
+You can use playwright MCP server to test the UI directly. 
+
+Don't start development server manually. You may assume the server is already running on `http://localhost:12000`.
+
+Don't take screenshots unless explictly requested.
+
+You may add `console.log` statements to debug.
+
 ## Quality Assurance
 
 The project includes comprehensive input validation:
