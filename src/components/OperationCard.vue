@@ -1,9 +1,11 @@
 <template>
   <div 
     class="operation-card"
-    :class="[operationClass, { 'dark-theme': theme === 'dark' }]"
+    :class="[operationClass, { 'dark-theme': theme === 'dark', 'selected': isSelected }]"
     @mouseover="handleMouseOver"
     @mouseout="handleMouseOut"
+    @contextmenu.prevent="handleRightClick"
+    @click.stop="$emit('click', waveIndex, opIndex)"
   >
     <!-- Time Input with Delete Button -->
     <div class="operation-row">
@@ -14,12 +16,13 @@
         :class="{ 'is-invalid': getValidationError('time') }"
         v-model="localOperation.time"
         @change="handleOperationUpdate"
+        @click.stop
         placeholder="300, w-200"
         :title="getValidationError('time') || ''"
       />
       <button
         class="btn btn-sm btn-danger delete-btn"
-        @click="handleRemoveOperation"
+        @click.stop="handleRemoveOperation"
         title="删除操作"
       >
         ×
@@ -32,6 +35,7 @@
         class="form-select form-select-sm operation-type-select"
         v-model="localOperation.type"
         @change="handleOperationUpdate"
+        @click.stop
       >
         <option value="fire">发射</option>
         <option value="plant">种炮</option>
@@ -45,6 +49,7 @@
         v-model="localOperation.columns"
         placeholder="1-5 7"
         @change="handleOperationUpdate"
+        @click.stop
         :title="getValidationError('columns') || ''"
       />
       <div v-else class="flex-grow-1"></div>
@@ -60,6 +65,7 @@
         min="1"
         :max="maxRows"
         @change="handleOperationUpdate"
+        @click.stop
         placeholder="行"
         :title="getValidationError('row') || ''"
       />
@@ -72,6 +78,7 @@
         :max="localOperation.type === 'fire' ? 9.9875 : 8"
         :step="localOperation.type === 'fire' ? 0.0125 : 1"
         @change="handleOperationUpdate"
+        @click.stop
         :placeholder="localOperation.type === 'fire' ? '目标列' : '列'"
         :title="getValidationError('targetCol') || ''"
       />
@@ -120,6 +127,10 @@ export default {
     waves: {
       type: Array,
       default: () => []
+    },
+    isSelected: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -199,6 +210,16 @@ export default {
     
     handleMouseOut() {
       this.$emit('clear-highlight');
+    },
+    
+    handleRightClick(event) {
+      this.$emit('context-menu', {
+        event,
+        type: 'operation',
+        operation: this.localOperation,
+        waveIndex: this.waveIndex,
+        opIndex: this.opIndex
+      });
     }
   }
 }
@@ -213,6 +234,7 @@ export default {
   padding: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .operation-card:hover {
@@ -248,6 +270,19 @@ export default {
 .operation-card.dark-theme.error-bg {
   background-color: rgba(220, 53, 69, 0.2) !important;
   border-color: rgba(220, 53, 69, 0.4) !important;
+}
+
+/* Selection styles */
+.operation-card.selected {
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border-color: rgba(0, 123, 255, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25) !important;
+}
+
+.operation-card.dark-theme.selected {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.35) !important;
 }
 
 .operation-row {

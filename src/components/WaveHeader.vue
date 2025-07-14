@@ -1,5 +1,10 @@
 <template>
-  <div class="wave-header" :class="{ 'dark-theme': theme === 'dark' }">
+  <div 
+    class="wave-header" 
+    :class="{ 'dark-theme': theme === 'dark', 'selected': isSelected }"
+    @contextmenu.prevent="handleRightClick"
+    @click.stop="$emit('click', waveIndex)"
+  >
     <div class="wave-info">
       <h6 class="wave-title">波次 {{ waveIndex + 1 }}</h6>
       <div class="wave-inputs">
@@ -12,6 +17,7 @@
             v-model.number="localWave.duration"
             min="1"
             @change="handleWaveUpdate"
+            @click.stop
             :title="waveDurationError || ''"
           />
         </div>
@@ -22,12 +28,13 @@
             class="form-control form-control-sm"
             v-model="localWave.notes"
             @change="handleWaveUpdate"
+            @click.stop
             placeholder="在此输入备注信息..."
           />
         </div>
       </div>
     </div>
-    <button class="btn btn-sm btn-danger" @click="handleRemoveWave">
+    <button class="btn btn-sm btn-danger" @click.stop="handleRemoveWave">
       移除波次
     </button>
   </div>
@@ -54,6 +61,10 @@ export default {
     validationErrors: {
       type: Map,
       default: () => new Map()
+    },
+    isSelected: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -95,6 +106,15 @@ export default {
     },
     handleRemoveWave() {
       this.$emit('remove-wave', this.waveIndex);
+    },
+    
+    handleRightClick(event) {
+      this.$emit('context-menu', {
+        event,
+        type: 'wave',
+        wave: this.localWave,
+        waveIndex: this.waveIndex
+      });
     }
   }
 }
@@ -110,11 +130,25 @@ export default {
   border: 1px solid #dee2e6;
   border-radius: 8px 8px 0 0;
   margin-bottom: 0;
+  cursor: pointer;
 }
 
 .wave-header.dark-theme {
   background-color: rgba(255, 255, 255, 0.02);
   border-color: #495057;
+}
+
+/* Selection styles */
+.wave-header.selected {
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border-color: rgba(0, 123, 255, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25) !important;
+}
+
+.wave-header.dark-theme.selected {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.35) !important;
 }
 
 .wave-info {

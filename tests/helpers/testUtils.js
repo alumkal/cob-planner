@@ -182,6 +182,179 @@ export const createTestStore = (configName = 'basic', overrides = {}) => {
             commit('UPDATE_OPERATION', payload);
           }
         }
+      },
+      clipboard: {
+        namespaced: true,
+        state: () => ({
+          clipboard: {
+            type: null,
+            data: null,
+            sourceInfo: null,
+            timestamp: null
+          },
+          copiedItemId: null,
+          showPasteZones: false
+        }),
+        getters: {
+          hasClipboardData: (state) => state.clipboard.type !== null && state.clipboard.data !== null,
+          clipboardContent: (state) => state.clipboard,
+          hasOperationInClipboard: (state) => state.clipboard.type === 'operation',
+          hasWaveInClipboard: (state) => state.clipboard.type === 'wave',
+          isItemCopied: (state) => (itemId) => state.copiedItemId === itemId,
+          shouldShowPasteZones: (state) => state.showPasteZones,
+          clipboardAge: (state) => {
+            if (!state.clipboard.timestamp) return null;
+            return Math.floor((Date.now() - state.clipboard.timestamp) / 1000);
+          }
+        },
+        mutations: {
+          SET_CLIPBOARD(state, { type, data, sourceInfo = null }) {
+            state.clipboard = {
+              type,
+              data: JSON.parse(JSON.stringify(data)),
+              sourceInfo,
+              timestamp: Date.now()
+            };
+            state.copiedItemId = `${type}-${Date.now()}`;
+          },
+          CLEAR_CLIPBOARD(state) {
+            state.clipboard = { type: null, data: null, sourceInfo: null, timestamp: null };
+            state.copiedItemId = null;
+          },
+          SET_COPIED_ITEM_ID(state, itemId) {
+            state.copiedItemId = itemId;
+          },
+          SET_SHOW_PASTE_ZONES(state, show) {
+            state.showPasteZones = show;
+          }
+        },
+        actions: {
+          copyOperation({ commit }, { operation, waveIndex, opIndex }) {
+            commit('SET_CLIPBOARD', { type: 'operation', data: operation, sourceInfo: { waveIndex, opIndex } });
+          },
+          copyWave({ commit }, { wave, waveIndex }) {
+            commit('SET_CLIPBOARD', { type: 'wave', data: wave, sourceInfo: { waveIndex } });
+          },
+          clearClipboard({ commit }) {
+            commit('CLEAR_CLIPBOARD');
+          },
+          getClipboardForPaste({ getters }) {
+            if (!getters.hasClipboardData) return null;
+            return {
+              type: getters.clipboardContent.type,
+              data: JSON.parse(JSON.stringify(getters.clipboardContent.data)),
+              sourceInfo: getters.clipboardContent.sourceInfo
+            };
+          },
+          showPasteZones({ commit }) {
+            commit('SET_SHOW_PASTE_ZONES', true);
+          },
+          hidePasteZones({ commit }) {
+            commit('SET_SHOW_PASTE_ZONES', false);
+          },
+          cleanupOldClipboard() {
+            // Mock implementation for tests
+          }
+        }
+      },
+      selection: {
+        namespaced: true,
+        state: () => ({
+          selection: {
+            type: null,
+            waveIndex: null,
+            opIndex: null
+          }
+        }),
+        getters: {
+          currentSelection: (state) => state.selection,
+          hasSelection: (state) => state.selection.type !== null,
+          isOperationSelected: (state) => (waveIndex, opIndex) => {
+            return state.selection.type === 'operation' &&
+                   state.selection.waveIndex === waveIndex &&
+                   state.selection.opIndex === opIndex;
+          },
+          isWaveSelected: (state) => (waveIndex) => {
+            return state.selection.type === 'wave' &&
+                   state.selection.waveIndex === waveIndex;
+          },
+          selectedOperation: (state, getters, rootState, rootGetters) => {
+            if (state.selection.type !== 'operation') return null;
+            const waves = rootGetters['waves/waves'];
+            const wave = waves[state.selection.waveIndex];
+            if (!wave) return null;
+            return wave.operations[state.selection.opIndex] || null;
+          },
+          selectedWave: (state, getters, rootState, rootGetters) => {
+            if (state.selection.type !== 'wave') return null;
+            const waves = rootGetters['waves/waves'];
+            return waves[state.selection.waveIndex] || null;
+          },
+          selectionInfo: (state, getters) => {
+            if (!getters.hasSelection) return null;
+            return {
+              type: state.selection.type,
+              waveIndex: state.selection.waveIndex,
+              opIndex: state.selection.opIndex,
+              item: state.selection.type === 'operation' ? getters.selectedOperation : getters.selectedWave
+            };
+          }
+        },
+        mutations: {
+          SELECT_OPERATION(state, { waveIndex, opIndex }) {
+            state.selection = { type: 'operation', waveIndex, opIndex };
+          },
+          SELECT_WAVE(state, { waveIndex }) {
+            state.selection = { type: 'wave', waveIndex, opIndex: null };
+          },
+          CLEAR_SELECTION(state) {
+            state.selection = { type: null, waveIndex: null, opIndex: null };
+          },
+          UPDATE_SELECTION_AFTER_REMOVAL(state, { type, removedWaveIndex, removedOpIndex }) {
+            // Mock implementation for tests
+          }
+        },
+        actions: {
+          selectOperation({ commit }, { waveIndex, opIndex }) {
+            commit('SELECT_OPERATION', { waveIndex, opIndex });
+          },
+          selectWave({ commit }, { waveIndex }) {
+            commit('SELECT_WAVE', { waveIndex });
+          },
+          clearSelection({ commit }) {
+            commit('CLEAR_SELECTION');
+          },
+          toggleOperationSelection({ state, commit }, { waveIndex, opIndex }) {
+            if (state.selection.type === 'operation' &&
+                state.selection.waveIndex === waveIndex &&
+                state.selection.opIndex === opIndex) {
+              commit('CLEAR_SELECTION');
+            } else {
+              commit('SELECT_OPERATION', { waveIndex, opIndex });
+            }
+          },
+          toggleWaveSelection({ state, commit }, { waveIndex }) {
+            if (state.selection.type === 'wave' &&
+                state.selection.waveIndex === waveIndex) {
+              commit('CLEAR_SELECTION');
+            } else {
+              commit('SELECT_WAVE', { waveIndex });
+            }
+          },
+          updateSelectionAfterRemoval({ commit }, payload) {
+            commit('UPDATE_SELECTION_AFTER_REMOVAL', payload);
+          },
+          selectPasteTarget({ commit, rootGetters }, { preferredWaveIndex = null } = {}) {
+            const waves = rootGetters['waves/waves'];
+            if (preferredWaveIndex !== null && waves[preferredWaveIndex]) {
+              commit('SELECT_WAVE', { waveIndex: preferredWaveIndex });
+            } else if (waves.length > 0) {
+              commit('SELECT_WAVE', { waveIndex: waves.length - 1 });
+            } else {
+              commit('CLEAR_SELECTION');
+            }
+          }
+        }
       }
     },
     getters: {
@@ -220,7 +393,8 @@ export const mountWithStore = (component, options = {}) => {
   const defaultStubs = {
     ExportDialog: true,
     WaveHeader: true,
-    OperationCard: true
+    OperationCard: true,
+    ContextMenu: true
   };
   
   return mount(component, {

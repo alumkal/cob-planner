@@ -7,6 +7,8 @@ import { createStore } from 'vuex';
 import ui from './modules/ui.js';
 import field from './modules/field.js';
 import waves from './modules/waves.js';
+import clipboard from './modules/clipboard.js';
+import selection from './modules/selection.js';
 import { importData, exportData } from '../utils/storage.js';
 
 // Root state for global application state
@@ -111,7 +113,9 @@ export default createStore({
   modules: {
     ui,
     field,
-    waves
+    waves,
+    clipboard,
+    selection
   },
   // Enable strict mode in development
   strict: process.env.NODE_ENV !== 'production'

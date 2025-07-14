@@ -12,7 +12,9 @@
         </div>
 
         <div v-else>
-          <div v-for="(wave, waveIndex) in waves" :key="'wave-' + waveIndex" class="wave-container mb-4">
+          <div v-for="(wave, waveIndex) in waves" :key="'wave-' + waveIndex" 
+               class="wave-container mb-4"
+               :class="{ 'wave-selected': isWaveSelected(waveIndex) }">
             <div class="wave-content">
               <!-- Wave Header Component -->
               <WaveHeader
@@ -20,13 +22,20 @@
                 :wave-index="waveIndex"
                 :theme="theme"
                 :validation-errors="validationErrors"
+                :is-selected="isWaveSelected(waveIndex)"
                 @update-wave="handleWaveUpdate"
                 @remove-wave="handleRemoveWave"
                 @validation-error="handleValidationError"
+                @context-menu="showContextMenu"
+                @click="handleWaveClick"
               />
 
               <!-- Operations Grid -->
-              <div class="operations-grid">
+              <div 
+                class="operations-grid"
+                @contextmenu="handleGridRightClick($event, waveIndex)"
+                @click="handleGridClick($event, waveIndex)"
+              >
                 <OperationCard
                   v-for="(op, opIndex) in wave.operations"
                   :key="'operation-' + waveIndex + '-' + opIndex"
@@ -39,11 +48,14 @@
                   :validation-errors="validationErrors"
                   :cannons="cannons"
                   :waves="waves"
+                  :is-selected="isOperationSelected(waveIndex, opIndex)"
                   @update-operation="handleOperationUpdate"
                   @remove-operation="handleRemoveOperation"
                   @validation-error="handleValidationError"
                   @highlight-operation="highlightOperation"
                   @clear-highlight="clearHighlight"
+                  @context-menu="showContextMenu"
+                  @click="handleOperationClick"
                 />
 
                 <!-- Floating Add Operation Button -->
@@ -61,7 +73,10 @@
             </div>
           </div>
 
-          <div class="text-center">
+          <div 
+            class="text-center add-wave-area"
+            @contextmenu.prevent="handleEmptyAreaRightClick"
+          >
             <button class="btn btn-success" @click="addWave">添加波次</button>
           </div>
         </div>
@@ -132,22 +147,54 @@
       :theme="theme"
       @close="showExportDialog = false"
     />
+
+    <!-- Context Menu -->
+    <ContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :type="contextMenu.type"
+      :operation="contextMenu.operation"
+      :wave="contextMenu.wave"
+      :wave-index="contextMenu.waveIndex"
+      :op-index="contextMenu.opIndex"
+      :target-wave-index="contextMenu.targetWaveIndex"
+      :theme="theme"
+      @close="hideContextMenu"
+      @paste-operation="handlePasteOperation"
+      @paste-wave="handlePasteWave"
+      @duplicate-operation="handleDuplicateOperation"
+      @duplicate-wave="handleDuplicateWave"
+      @delete-operation="handleRemoveOperation"
+      @delete-wave="handleRemoveWave"
+      @add-operation="addOperation"
+      @add-wave="addWave"
+    />
   </div>
 </template>
 
 <script>
 import { solveReuse } from '../utils/solver.js';
 import { validateWave, validateOperation } from '../utils/validation.js';
+import { useCopyPaste } from '../composables/useCopyPaste.js';
 import ExportDialog from './ExportDialog.vue';
 import WaveHeader from './WaveHeader.vue';
 import OperationCard from './OperationCard.vue';
+import ContextMenu from './ContextMenu.vue';
 
 export default {
   name: 'ReusePage',
   components: {
     ExportDialog,
     WaveHeader,
-    OperationCard
+    OperationCard,
+    ContextMenu
+  },
+  setup() {
+    const copyPasteComposable = useCopyPaste();
+    return {
+      copyPasteComposable
+    };
   },
   data() {
     return {
@@ -161,12 +208,30 @@ export default {
         left: '0px',
         display: 'none'
       },
-      validationErrors: new Map()
+      validationErrors: new Map(),
+      contextMenu: {
+        visible: false,
+        x: 0,
+        y: 0,
+        type: 'empty',
+        operation: null,
+        wave: null,
+        waveIndex: null,
+        opIndex: null,
+        targetWaveIndex: null
+      }
     };
   },
   mounted() {
     // Perform initial validation
     this.validateAllInputs();
+    
+    // Add click listener to close context menu
+    document.addEventListener('click', this.hideContextMenu);
+  },
+  beforeUnmount() {
+    // Remove click listener
+    document.removeEventListener('click', this.hideContextMenu);
   },
   computed: {
     rows() {
@@ -183,14 +248,74 @@ export default {
     },
     totalOperations() {
       return this.$store.getters['waves/totalOperations'];
+    },
+    // Selection computed properties
+    currentSelection() {
+      return this.$store.getters['selection/currentSelection'];
+    },
+    hasSelection() {
+      return this.$store.getters['selection/hasSelection'];
     }
   },
   methods: {
+    // Selection helper methods
+    isOperationSelected(waveIndex, opIndex) {
+      return this.$store.getters['selection/isOperationSelected'](waveIndex, opIndex);
+    },
+    
+    isWaveSelected(waveIndex) {
+      return this.$store.getters['selection/isWaveSelected'](waveIndex);
+    },
+    
+    // Click handlers for selection
+    handleOperationClick(waveIndex, opIndex) {
+      // Handle case where this might be called with event object
+      if (typeof waveIndex === 'object') {
+        console.log('Operation clicked via event:', waveIndex);
+        return; // Ignore event-based calls
+      }
+      console.log('Operation clicked:', waveIndex, opIndex);
+      this.$store.dispatch('selection/toggleOperationSelection', { waveIndex, opIndex });
+    },
+    
+    handleWaveClick(waveIndex) {
+      // Handle case where this might be called with event object
+      if (typeof waveIndex === 'object') {
+        console.log('Wave clicked via event:', waveIndex);
+        return; // Ignore event-based calls
+      }
+      console.log('Wave clicked:', waveIndex);
+      this.$store.dispatch('selection/toggleWaveSelection', { waveIndex });
+    },
+    
+    handleGridClick(event, waveIndex) {
+      console.log('Grid clicked:', event.target, waveIndex);
+      // Check if the click target is within an operation card or add button
+      const target = event.target;
+      const operationCard = target.closest('.operation-card');
+      const addButton = target.closest('.add-operation-btn-floating');
+      
+      // If we clicked on an operation card or add button, don't handle it here
+      if (operationCard || addButton) {
+        console.log('Ignoring click on operation card or add button');
+        return;
+      }
+      
+      // Click on empty space in grid - select the wave
+      console.log('Selecting wave from grid click:', waveIndex);
+      this.$store.dispatch('selection/selectWave', { waveIndex });
+    },
+    
     addWave() {
       this.$store.dispatch('waves/addWave');
     },
     
     handleRemoveWave(waveIndex) {
+      // Update selection before removing wave
+      this.$store.dispatch('selection/updateSelectionAfterRemoval', { 
+        type: 'wave', 
+        removedWaveIndex: waveIndex 
+      });
       this.$store.dispatch('waves/removeWave', waveIndex);
       this.calculationResult = null;
     },
@@ -220,6 +345,12 @@ export default {
     },
     
     handleRemoveOperation(payload) {
+      // Update selection before removing operation
+      this.$store.dispatch('selection/updateSelectionAfterRemoval', { 
+        type: 'operation', 
+        removedWaveIndex: payload.waveIndex,
+        removedOpIndex: payload.opIndex 
+      });
       this.$store.dispatch('waves/removeOperation', payload);
       this.calculationResult = null;
     },
@@ -414,6 +545,127 @@ export default {
       });
       
       return this.validationErrors.size === 0;
+    },
+    
+    // Context menu methods
+    showContextMenu(payload) {
+      this.contextMenu = {
+        visible: true,
+        x: payload.event.clientX,
+        y: payload.event.clientY,
+        type: payload.type,
+        operation: payload.operation || null,
+        wave: payload.wave || null,
+        waveIndex: payload.waveIndex,
+        opIndex: payload.opIndex || null,
+        targetWaveIndex: payload.targetWaveIndex || null
+      };
+    },
+    
+    hideContextMenu() {
+      this.contextMenu.visible = false;
+    },
+    
+    handleGridRightClick(event, waveIndex) {
+      // Check if the click target is the grid itself (empty area) or an operation card or wave header
+      const target = event.target;
+      const operationCard = target.closest('.operation-card');
+      const waveHeader = target.closest('.wave-header');
+      
+      // If we clicked on an operation card or wave header, don't handle it here
+      if (operationCard || waveHeader) {
+        return;
+      }
+      
+      // Only handle if the target is within the operations-grid
+      const operationsGrid = target.closest('.operations-grid');
+      if (!operationsGrid) {
+        return;
+      }
+      
+      // Prevent default context menu only for empty area clicks
+      event.preventDefault();
+      
+      this.showContextMenu({
+        event,
+        type: 'empty',
+        targetWaveIndex: waveIndex
+      });
+    },
+    
+    handleEmptyAreaRightClick(event) {
+      this.showContextMenu({
+        event,
+        type: 'empty',
+        targetWaveIndex: null
+      });
+    },
+    
+    // Copy-paste handlers for context menu
+    async handlePasteOperation(payload) {
+      const success = await this.copyPasteComposable.pasteOperation(payload.waveIndex);
+      
+      if (success) {
+        this.calculationResult = null;
+        // Validate the new operation
+        this.$nextTick(() => {
+          const wave = this.waves[payload.waveIndex];
+          if (wave && wave.operations.length > 0) {
+            const opIndex = wave.operations.length - 1;
+            this.validateOperationAtIndex(payload.waveIndex, opIndex);
+          }
+        });
+      }
+    },
+    
+    async handlePasteWave() {
+      const success = await this.copyPasteComposable.pasteWave();
+      
+      if (success) {
+        this.calculationResult = null;
+        // Validate the new wave
+        this.$nextTick(() => {
+          const waveIndex = this.waves.length - 1;
+          this.validateWaveAtIndex(waveIndex);
+          
+          // Validate all operations in the new wave
+          const wave = this.waves[waveIndex];
+          if (wave) {
+            wave.operations.forEach((op, opIndex) => {
+              this.validateOperationAtIndex(waveIndex, opIndex);
+            });
+          }
+        });
+      }
+    },
+    
+    async handleDuplicateOperation(payload) {
+      // Duplicate operation is handled by the context menu component
+      this.calculationResult = null;
+      this.$nextTick(() => {
+        const wave = this.waves[payload.waveIndex];
+        if (wave && wave.operations.length > 0) {
+          const opIndex = wave.operations.length - 1;
+          this.validateOperationAtIndex(payload.waveIndex, opIndex);
+        }
+      });
+    },
+    
+    async handleDuplicateWave(payload) {
+      // Duplicate wave is handled by the context menu component
+      this.calculationResult = null;
+      this.$nextTick(() => {
+        const waveIndex = this.waves.length - 1;
+        this.validateWaveAtIndex(waveIndex);
+        
+        // Validate all operations in the new wave
+        const wave = this.waves[waveIndex];
+        if (wave) {
+          wave.operations.forEach((op, opIndex) => {
+            this.validateOperationAtIndex(waveIndex, opIndex);
+          });
+        }
+      });
     }
   },
   watch: {
@@ -435,6 +687,48 @@ export default {
 <style scoped>
 .wave-content {
   position: relative;
+}
+
+/* Wave selection styles - highlight header and operations grid without connecting borders */
+.wave-container.wave-selected .wave-header {
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border-color: rgba(0, 123, 255, 0.5) !important;
+  border-bottom-color: #dee2e6 !important; /* Keep original bottom border */
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5) !important;
+  box-shadow: 
+    0 -2px 0 0 rgba(0, 123, 255, 0.5), 
+    -2px 0 0 0 rgba(0, 123, 255, 0.5), 
+    2px 0 0 0 rgba(0, 123, 255, 0.5) !important; /* Only top, left, right borders */
+}
+
+.dark .wave-container.wave-selected .wave-header {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+  border-bottom-color: #495057 !important; /* Keep original bottom border for dark theme */
+  box-shadow: 
+    0 -2px 0 0 rgba(13, 110, 253, 0.6), 
+    -2px 0 0 0 rgba(13, 110, 253, 0.6), 
+    2px 0 0 0 rgba(13, 110, 253, 0.6) !important; /* Only top, left, right borders */
+}
+
+.wave-container.wave-selected .operations-grid {
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border-color: rgba(0, 123, 255, 0.5) !important;
+  border-top-color: #dee2e6 !important; /* Keep original top border */
+  box-shadow: 
+    0 2px 0 0 rgba(0, 123, 255, 0.5), 
+    -2px 0 0 0 rgba(0, 123, 255, 0.5), 
+    2px 0 0 0 rgba(0, 123, 255, 0.5) !important; /* Only bottom, left, right borders */
+}
+
+.dark .wave-container.wave-selected .operations-grid {
+  background-color: rgba(13, 110, 253, 0.2) !important;
+  border-color: rgba(13, 110, 253, 0.6) !important;
+  border-top-color: #495057 !important; /* Keep original top border for dark theme */
+  box-shadow: 
+    0 2px 0 0 rgba(13, 110, 253, 0.6), 
+    -2px 0 0 0 rgba(13, 110, 253, 0.6), 
+    2px 0 0 0 rgba(13, 110, 253, 0.6) !important; /* Only bottom, left, right borders */
 }
 
 .operation-tooltip {
@@ -474,6 +768,7 @@ export default {
   border-radius: 0 0 8px 8px;
   min-height: 90px;
   align-items: stretch;
+  cursor: pointer;
 }
 
 .dark .operations-grid {
@@ -586,6 +881,22 @@ export default {
 .add-operation-btn-floating.dark-theme:focus .add-icon::after {
   background: #20c997;
   box-shadow: 0 0 4px rgba(32, 201, 151, 0.5);
+}
+
+/* Add Wave Area */
+.add-wave-area {
+  padding: 20px;
+  margin: 16px 0;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.add-wave-area:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+.dark .add-wave-area:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* Responsive adjustments */
