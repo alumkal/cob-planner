@@ -72,6 +72,117 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     // Show visual feedback
     showToast(`已复制 ${sortedWaves.length} 个波次到剪贴板`);
   };
+
+  // Cut operations (copy + delete)
+  const cutOperation = async (operation, waveIndex, opIndex) => {
+    // First copy the operation
+    copyOperation(operation, waveIndex, opIndex);
+    
+    // Then delete it
+    try {
+      await store.dispatch('waves/removeOperation', { waveIndex, opIndex });
+      showToast('操作已剪切到剪贴板');
+      return true;
+    } catch (error) {
+      console.error('Error cutting operation:', error);
+      showToast('剪切操作失败', 'error');
+      return false;
+    }
+  };
+
+  const cutWave = async (wave, waveIndex) => {
+    // First copy the wave
+    copyWave(wave, waveIndex);
+    
+    // Then delete it
+    try {
+      await store.dispatch('waves/removeWave', waveIndex);
+      showToast('波次已剪切到剪贴板');
+      return true;
+    } catch (error) {
+      console.error('Error cutting wave:', error);
+      showToast('剪切波次失败', 'error');
+      return false;
+    }
+  };
+
+  // Cut multiple operations
+  const cutMultipleOperations = async (selections) => {
+    try {
+      // Pause undo/redo tracking for batch operation
+      pauseTracking();
+      
+      // First copy all operations
+      copyMultipleOperations(selections);
+      
+      // Sort selections by wave index (desc) and operation index (desc) to delete from end to start
+      // This prevents index shifting issues during deletion
+      const sortedSelections = [...selections].sort((a, b) => {
+        if (a.waveIndex !== b.waveIndex) {
+          return b.waveIndex - a.waveIndex; // Wave index descending
+        }
+        return b.opIndex - a.opIndex; // Operation index descending
+      });
+      
+      // Delete all operations
+      for (const selection of sortedSelections) {
+        await store.dispatch('waves/removeOperation', { 
+          waveIndex: selection.waveIndex, 
+          opIndex: selection.opIndex 
+        });
+      }
+      
+      // Resume tracking
+      resumeTracking();
+      
+      // Clear selection after cutting
+      clearSelection();
+      
+      showToast(`已剪切 ${selections.length} 个操作到剪贴板`);
+      return true;
+    } catch (error) {
+      // Ensure tracking is resumed even if error occurs
+      resumeTracking();
+      console.error('Error cutting multiple operations:', error);
+      showToast('剪切多个操作失败', 'error');
+      return false;
+    }
+  };
+
+  // Cut multiple waves
+  const cutMultipleWaves = async (selections) => {
+    try {
+      // Pause undo/redo tracking for batch operation
+      pauseTracking();
+      
+      // First copy all waves
+      copyMultipleWaves(selections);
+      
+      // Sort selections by wave index (desc) to delete from end to start
+      // This prevents index shifting issues during deletion
+      const sortedSelections = [...selections].sort((a, b) => b.waveIndex - a.waveIndex);
+      
+      // Delete all waves
+      for (const selection of sortedSelections) {
+        await store.dispatch('waves/removeWave', selection.waveIndex);
+      }
+      
+      // Resume tracking
+      resumeTracking();
+      
+      // Clear selection after cutting
+      clearSelection();
+      
+      showToast(`已剪切 ${selections.length} 个波次到剪贴板`);
+      return true;
+    } catch (error) {
+      // Ensure tracking is resumed even if error occurs
+      resumeTracking();
+      console.error('Error cutting multiple waves:', error);
+      showToast('剪切多个波次失败', 'error');
+      return false;
+    }
+  };
   
   // Paste operations
   const pasteOperation = async (targetWaveIndex, targetOpIndex = null) => {
@@ -84,7 +195,7 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     
     // Handle multiple operations
     if (clipboardData.isMultiple && clipboardData.type === 'operations') {
-      return await pasteMultipleOperations(targetWaveIndex, clipboardData.items);
+      return await pasteMultipleOperations(targetWaveIndex, clipboardData.items, targetOpIndex);
     }
     
     // Handle single operation (legacy)
@@ -127,7 +238,7 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   };
   
   // Paste multiple operations
-  const pasteMultipleOperations = async (targetWaveIndex, operations) => {
+  const pasteMultipleOperations = async (targetWaveIndex, operations, targetOpIndex = null) => {
     try {
       // Pause undo/redo tracking for batch operation
       pauseTracking();
@@ -148,10 +259,20 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
         id: generateOperationId()
       }));
       
-      // Add all operations to the target wave in the local copy
+      // Insert operations at target position or add at end
+      const currentOperations = [...currentWaves[targetWaveIndex].operations];
+      if (targetOpIndex !== null) {
+        // Insert at specific position
+        currentOperations.splice(targetOpIndex, 0, ...newOperations);
+      } else {
+        // Add at the end
+        currentOperations.push(...newOperations);
+      }
+      
+      // Update the wave with new operations
       currentWaves[targetWaveIndex] = {
         ...currentWaves[targetWaveIndex],
-        operations: [...currentWaves[targetWaveIndex].operations, ...newOperations]
+        operations: currentOperations
       };
       
       // Apply all changes at once using SET_WAVES mutation
@@ -181,7 +302,7 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     
     // Handle multiple waves
     if (clipboardData.isMultiple && clipboardData.type === 'waves') {
-      return await pasteMultipleWaves(clipboardData.items);
+      return await pasteMultipleWaves(clipboardData.items, targetIndex);
     }
     
     // Handle single wave (legacy)
@@ -197,18 +318,26 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
           }))
         };
         
-        // Add the wave
-        await store.dispatch('waves/addWave');
-        
-        // Get the new wave index (last wave)
-        const waves = store.getters['waves/waves'];
-        const newWaveIndex = waves.length - 1;
-        
-        // Update the wave with clipboard data
-        await store.dispatch('waves/updateWave', {
-          index: newWaveIndex,
-          wave: newWave
-        });
+        // Insert wave at target position or add at end
+        if (targetIndex !== null) {
+          // Insert at specific position
+          const currentWaves = [...store.getters['waves/waves']];
+          currentWaves.splice(targetIndex, 0, newWave);
+          await store.dispatch('waves/setWaves', currentWaves);
+        } else {
+          // Add at the end
+          await store.dispatch('waves/addWave');
+          
+          // Get the new wave index (last wave)
+          const waves = store.getters['waves/waves'];
+          const newWaveIndex = waves.length - 1;
+          
+          // Update the wave with clipboard data
+          await store.dispatch('waves/updateWave', {
+            index: newWaveIndex,
+            wave: newWave
+          });
+        }
         
         showToast('波次已粘贴');
         return true;
@@ -224,7 +353,7 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   };
   
   // Paste multiple waves
-  const pasteMultipleWaves = async (waves) => {
+  const pasteMultipleWaves = async (waves, targetWaveIndex = null) => {
     try {
       // Pause undo/redo tracking for batch operation
       pauseTracking();
@@ -245,8 +374,16 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
         }))
       }));
       
-      // Add all new waves to the current waves array
-      const updatedWaves = [...currentWaves, ...newWaves];
+      // Insert waves at target position or add at end
+      let updatedWaves;
+      if (targetWaveIndex !== null) {
+        // Insert at specific position
+        updatedWaves = [...currentWaves];
+        updatedWaves.splice(targetWaveIndex, 0, ...newWaves);
+      } else {
+        // Add all new waves to the end of the current waves array
+        updatedWaves = [...currentWaves, ...newWaves];
+      }
       
       // Apply all changes at once using SET_WAVES mutation
       await store.dispatch('waves/setWaves', updatedWaves);
@@ -306,6 +443,12 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
         event.preventDefault();
         break;
         
+      case 'x':
+        // Cut selected item
+        handleCutShortcut();
+        event.preventDefault();
+        break;
+        
       case 'v':
         // Paste to selected location or appropriate target
         handlePasteShortcut();
@@ -337,6 +480,30 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
       }
     }
   };
+
+  // Handle cut keyboard shortcut
+  const handleCutShortcut = async () => {
+    // Get all selected items for multiple selection support
+    const allSelections = store.getters['selection/allSelectionInfo'];
+    if (!allSelections || allSelections.length === 0) return;
+    
+    if (allSelections.length === 1) {
+      // Single item - use existing single cut logic
+      const selection = allSelections[0];
+      if (selection.type === 'operation' && selection.operation) {
+        await cutOperation(selection.operation, selection.waveIndex, selection.opIndex);
+      } else if (selection.type === 'wave' && selection.wave) {
+        await cutWave(selection.wave, selection.waveIndex);
+      }
+    } else {
+      // Multiple items - use new multiple cut logic
+      if (allSelections[0].type === 'operation') {
+        await cutMultipleOperations(allSelections);
+      } else if (allSelections[0].type === 'wave') {
+        await cutMultipleWaves(allSelections);
+      }
+    }
+  };
   
   // Handle paste keyboard shortcut
   const handlePasteShortcut = async () => {
@@ -362,9 +529,15 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
       }
       
       if (targetWaveIndex !== null) {
+        // Determine insertion position for operations
+        let targetOpIndex = null;
+        if (selection.type === 'operation') {
+          targetOpIndex = selection.opIndex;
+        }
+        
         // Handle multiple operations directly
         if (clipboardData.isMultiple && clipboardData.type === 'operations') {
-          await pasteMultipleOperations(targetWaveIndex, clipboardData.items);
+          await pasteMultipleOperations(targetWaveIndex, clipboardData.items, targetOpIndex);
         }
         // Handle single operation directly
         else if (!clipboardData.isMultiple && clipboardData.type === 'operation') {
@@ -376,11 +549,19 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
               id: generateOperationId()
             };
             
-            // Add the operation to the target wave
-            await store.dispatch('waves/addOperation', {
-              waveIndex: targetWaveIndex,
-              operation: newOperation
-            });
+            // Insert the operation at the target position or add at end
+            if (targetOpIndex !== null) {
+              await store.dispatch('waves/insertOperation', {
+                waveIndex: targetWaveIndex,
+                opIndex: targetOpIndex,
+                operation: newOperation
+              });
+            } else {
+              await store.dispatch('waves/addOperation', {
+                waveIndex: targetWaveIndex,
+                operation: newOperation
+              });
+            }
             
             showToast('操作已粘贴');
           } catch (error) {
@@ -392,9 +573,17 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     } 
     // Handle waves (single or multiple)
     else if (clipboardData.type === 'wave' || clipboardData.type === 'waves') {
+      // Determine insertion position for waves
+      let targetWaveIndex = null;
+      if (selection.type === 'wave') {
+        targetWaveIndex = selection.waveIndex;
+      } else if (selection.type === 'operation') {
+        targetWaveIndex = selection.waveIndex;
+      }
+      
       // Handle multiple waves directly
       if (clipboardData.isMultiple && clipboardData.type === 'waves') {
-        await pasteMultipleWaves(clipboardData.items);
+        await pasteMultipleWaves(clipboardData.items, targetWaveIndex);
       }
       // Handle single wave directly
       else if (!clipboardData.isMultiple && clipboardData.type === 'wave') {
@@ -409,18 +598,26 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
             }))
           };
           
-          // Add the wave
-          await store.dispatch('waves/addWave');
-          
-          // Get the new wave index (last wave)
-          const waves = store.getters['waves/waves'];
-          const newWaveIndex = waves.length - 1;
-          
-          // Update the wave with clipboard data
-          await store.dispatch('waves/updateWave', {
-            index: newWaveIndex,
-            wave: newWave
-          });
+          // Insert wave at target position or add at end
+          if (targetWaveIndex !== null) {
+            // Insert at specific position
+            const currentWaves = [...store.getters['waves/waves']];
+            currentWaves.splice(targetWaveIndex, 0, newWave);
+            await store.dispatch('waves/setWaves', currentWaves);
+          } else {
+            // Add at the end
+            await store.dispatch('waves/addWave');
+            
+            // Get the new wave index (last wave)
+            const waves = store.getters['waves/waves'];
+            const newWaveIndex = waves.length - 1;
+            
+            // Update the wave with clipboard data
+            await store.dispatch('waves/updateWave', {
+              index: newWaveIndex,
+              wave: newWave
+            });
+          }
           
           showToast('波次已粘贴');
         } catch (error) {
@@ -538,6 +735,10 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     copyWave,
     copyMultipleOperations,
     copyMultipleWaves,
+    cutOperation,
+    cutWave,
+    cutMultipleOperations,
+    cutMultipleWaves,
     pasteOperation,
     pasteWave,
     pasteMultipleOperations,
