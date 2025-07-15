@@ -1,9 +1,9 @@
 <template>
   <div class="field-page">
     <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-3">布阵设置</h5>
-        <div class="d-flex flex-wrap gap-3 align-items-center">
+      <div class="card-header d-flex justify-content-between align-items-center" style="padding: 0.75rem 1rem;">
+        <div class="d-flex align-items-center gap-4">
+          <h5 class="mb-0">布阵设置</h5>
           <div class="d-flex align-items-center">
             <label for="fieldNameInput" class="me-2">名称:</label>
             <input
@@ -16,19 +16,19 @@
               placeholder="输入阵型名称"
             />
           </div>
-          <div class="d-flex align-items-center">
-            <label for="rowsInput" class="me-2">行数:</label>
-            <input
-              type="number"
-              id="rowsInput"
-              class="form-control form-control-sm"
-              style="width: 70px"
-              v-model.number="rowsInput"
-              min="1"
-              max="10"
-              @change="updateRows"
-            />
-          </div>
+        </div>
+        <div class="d-flex align-items-center">
+          <label for="rowsInput" class="me-2">行数:</label>
+          <input
+            type="number"
+            id="rowsInput"
+            class="form-control form-control-sm"
+            style="width: 70px"
+            v-model.number="rowsInput"
+            min="1"
+            max="10"
+            @change="updateRows"
+          />
         </div>
       </div>
       <div class="card-body">

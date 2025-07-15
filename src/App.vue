@@ -100,4 +100,31 @@ body {
   background-color: var(--dark-danger) !important;
   color: white !important;
 }
+
+.dark input.form-control,
+.dark input.form-control-sm,
+.dark select.form-select,
+.dark select.form-select-sm,
+.dark textarea.form-control {
+  background-color: #495057;
+  border-color: #6c757d;
+  color: #f8f9fa;
+}
+
+.dark input.form-control::placeholder,
+.dark input.form-control-sm::placeholder,
+.dark textarea.form-control::placeholder {
+  color: #adb5bd;
+}
+
+.dark input.form-control:focus,
+.dark input.form-control-sm:focus,
+.dark select.form-select:focus,
+.dark select.form-select-sm:focus,
+.dark textarea.form-control:focus {
+  background-color: #495057;
+  border-color: #80bdff;
+  color: #f8f9fa;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
 </style>
