@@ -425,13 +425,28 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   
   // Keyboard shortcuts handler
   const handleKeyboardShortcuts = (event) => {
+    // Check if user is editing an input field
+    const activeElement = document.activeElement;
+    const isEditing = activeElement && (
+      activeElement.tagName === 'INPUT' || 
+      activeElement.tagName === 'TEXTAREA' || 
+      activeElement.tagName === 'SELECT' ||
+      activeElement.isContentEditable
+    );
+    
     // Handle Escape key (no modifier needed)
     if (event.key === 'Escape') {
-      clearClipboard();
-      clearSelection();
-      event.preventDefault();
+      // Only clear clipboard/selection if not editing
+      if (!isEditing) {
+        clearClipboard();
+        clearSelection();
+        event.preventDefault();
+      }
       return;
     }
+    
+    // Don't handle keyboard shortcuts if user is editing an input field
+    if (isEditing) return;
     
     // Only handle other keys if Ctrl or Cmd is pressed
     if (!(event.ctrlKey || event.metaKey)) return;
@@ -747,6 +762,9 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
     duplicateWave,
     clearClipboard,
     clearSelection,
+    
+    // Keyboard shortcut handlers
+    handlePasteShortcut,
     
     // UI helpers
     showPasteZones,

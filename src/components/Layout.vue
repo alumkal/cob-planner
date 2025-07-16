@@ -115,6 +115,18 @@ export default {
     
     // Keyboard shortcuts for undo/redo
     const handleKeydown = (event) => {
+      // Check if user is editing an input field
+      const activeElement = document.activeElement;
+      const isEditing = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' || 
+        activeElement.tagName === 'SELECT' ||
+        activeElement.isContentEditable
+      );
+      
+      // Don't handle undo/redo shortcuts if user is editing
+      if (isEditing) return;
+      
       if (event.ctrlKey || event.metaKey) {
         if (event.key === 'z' && !event.shiftKey) {
           event.preventDefault();

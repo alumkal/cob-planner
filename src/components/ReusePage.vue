@@ -161,8 +161,6 @@
       :target-wave-index="contextMenu.targetWaveIndex"
       :theme="theme"
       @close="hideContextMenu"
-      @paste-operation="handlePasteOperation"
-      @paste-wave="handlePasteWave"
       @duplicate-operation="handleDuplicateOperation"
       @duplicate-wave="handleDuplicateWave"
       @delete-operation="handleRemoveOperation"
@@ -569,8 +567,8 @@ export default {
         operation: payload.operation || null,
         wave: payload.wave || null,
         waveIndex: payload.waveIndex,
-        opIndex: payload.opIndex || null,
-        targetWaveIndex: payload.targetWaveIndex || null
+        opIndex: payload.opIndex !== undefined ? payload.opIndex : null,
+        targetWaveIndex: payload.targetWaveIndex !== undefined ? payload.targetWaveIndex : null
       };
     },
     
@@ -624,43 +622,6 @@ export default {
       });
     },
     
-    // Copy-paste handlers for context menu
-    async handlePasteOperation(payload) {
-      const success = await this.copyPasteComposable.pasteOperation(payload.waveIndex);
-      
-      if (success) {
-        this.calculationResult = null;
-        // Validate the new operation
-        this.$nextTick(() => {
-          const wave = this.waves[payload.waveIndex];
-          if (wave && wave.operations.length > 0) {
-            const opIndex = wave.operations.length - 1;
-            this.validateOperationAtIndex(payload.waveIndex, opIndex);
-          }
-        });
-      }
-    },
-    
-    async handlePasteWave() {
-      const success = await this.copyPasteComposable.pasteWave();
-      
-      if (success) {
-        this.calculationResult = null;
-        // Validate the new wave
-        this.$nextTick(() => {
-          const waveIndex = this.waves.length - 1;
-          this.validateWaveAtIndex(waveIndex);
-          
-          // Validate all operations in the new wave
-          const wave = this.waves[waveIndex];
-          if (wave) {
-            wave.operations.forEach((op, opIndex) => {
-              this.validateOperationAtIndex(waveIndex, opIndex);
-            });
-          }
-        });
-      }
-    },
     
     async handleDuplicateOperation(payload) {
       // Duplicate operation is handled by the context menu component

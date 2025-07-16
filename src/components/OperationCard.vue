@@ -4,7 +4,7 @@
     :class="[operationClass, { 'dark-theme': theme === 'dark', 'selected': isSelected }]"
     @mouseover="handleMouseOver"
     @mouseout="handleMouseOut"
-    @contextmenu.prevent="handleRightClick"
+    @contextmenu="handleRightClick"
     @click.stop="$emit('click', waveIndex, opIndex, $event)"
   >
     <!-- Time Input with Delete Button -->
@@ -213,6 +213,21 @@ export default {
     },
     
     handleRightClick(event) {
+      // Check if right-click is on an input field
+      const target = event.target;
+      const isInputField = target && (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      );
+      
+      // Don't prevent default context menu for input fields
+      if (isInputField) {
+        return;
+      }
+      
+      event.preventDefault();
       this.$emit('context-menu', {
         event,
         type: 'operation',
@@ -302,6 +317,7 @@ export default {
   color: #6c757d;
   min-width: 32px;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .dark .row-label {

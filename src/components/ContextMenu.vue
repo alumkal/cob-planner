@@ -18,11 +18,11 @@
         <button 
           class="context-menu-item"
           @click="pasteOperation"
-          :disabled="!hasOperationInClipboard"
+          v-if="hasOperationInClipboard"
         >
           📄 粘贴操作
         </button>
-        <div class="context-menu-divider"></div>
+        <div class="context-menu-divider" v-if="hasOperationInClipboard"></div>
         <button 
           class="context-menu-item"
           @click="duplicateOperation"
@@ -51,12 +51,25 @@
         </button>
         <button 
           class="context-menu-item"
+          @click="pasteOperation"
+          v-if="hasOperationInClipboard"
+        >
+          📄 粘贴操作
+        </button>
+        <button 
+          class="context-menu-item"
           @click="pasteWave"
-          :disabled="!hasWaveInClipboard"
+          v-if="hasWaveInClipboard"
         >
           📄 粘贴波次
         </button>
-        <div class="context-menu-divider"></div>
+        <div class="context-menu-divider" v-if="hasOperationInClipboard || hasWaveInClipboard"></div>
+        <button 
+          class="context-menu-item"
+          @click="addOperationToWave"
+        >
+          ➕ 添加操作
+        </button>
         <button 
           class="context-menu-item"
           @click="duplicateWave"
@@ -79,15 +92,14 @@
         <button 
           class="context-menu-item"
           @click="pasteOperation"
-          :disabled="!hasOperationInClipboard"
-          v-if="targetWaveIndex !== null"
+          v-if="targetWaveIndex !== null && hasOperationInClipboard"
         >
           📄 粘贴操作
         </button>
         <button 
           class="context-menu-item"
           @click="pasteWave"
-          :disabled="!hasWaveInClipboard"
+          v-if="hasWaveInClipboard"
         >
           📄 粘贴波次
         </button>
@@ -187,11 +199,8 @@ export default {
     },
     
     async pasteOperation() {
-      const waveIndex = this.targetWaveIndex !== null ? this.targetWaveIndex : this.waveIndex;
-      if (waveIndex === null) return;
-      
-      // Only emit the event, let ReusePage handle the actual pasting
-      this.$emit('paste-operation', { waveIndex });
+      // Use the copy-paste composable's paste shortcut handler for consistency
+      await this.copyPasteComposable.handlePasteShortcut();
       this.$emit('close');
     },
     
@@ -219,8 +228,8 @@ export default {
     },
     
     async pasteWave() {
-      // Only emit the event, let ReusePage handle the actual pasting
-      this.$emit('paste-wave');
+      // Use the copy-paste composable's paste shortcut handler for consistency
+      await this.copyPasteComposable.handlePasteShortcut();
       this.$emit('close');
     },
     
@@ -243,7 +252,14 @@ export default {
     // General actions
     addOperation() {
       if (this.targetWaveIndex !== null) {
-        this.$emit('add-operation', { waveIndex: this.targetWaveIndex });
+        this.$emit('add-operation', this.targetWaveIndex);
+      }
+      this.$emit('close');
+    },
+    
+    addOperationToWave() {
+      if (this.waveIndex !== null) {
+        this.$emit('add-operation', this.waveIndex);
       }
       this.$emit('close');
     },

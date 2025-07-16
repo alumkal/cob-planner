@@ -2,7 +2,7 @@
   <div 
     class="wave-header" 
     :class="{ 'dark-theme': theme === 'dark', 'selected': isSelected }"
-    @contextmenu.prevent="handleRightClick"
+    @contextmenu="handleRightClick"
     @click.stop="$emit('click', waveIndex, $event)"
   >
     <div class="wave-info">
@@ -110,6 +110,21 @@ export default {
     },
     
     handleRightClick(event) {
+      // Check if right-click is on an input field
+      const target = event.target;
+      const isInputField = target && (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      );
+      
+      // Don't prevent default context menu for input fields
+      if (isInputField) {
+        return;
+      }
+      
+      event.preventDefault();
       this.$emit('context-menu', {
         event,
         type: 'wave',
@@ -164,6 +179,7 @@ export default {
   margin: 0;
   font-weight: 600;
   color: #495057;
+  user-select: none;
 }
 
 .dark .wave-title {
@@ -189,6 +205,7 @@ export default {
   font-weight: 500;
   margin: 0;
   white-space: nowrap;
+  user-select: none;
 }
 
 .wave-duration input {
@@ -208,6 +225,7 @@ export default {
   font-weight: 500;
   margin: 0;
   white-space: nowrap;
+  user-select: none;
 }
 
 .wave-notes input {
