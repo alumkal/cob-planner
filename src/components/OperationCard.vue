@@ -330,10 +330,11 @@ export default {
 }
 
 .delete-btn {
-  padding: 3px;
+  padding: 0;
   line-height: 1;
-  font-size: 11px;
-  min-width: auto;
+  font-size: 18px;
+  min-width: 1.25rem;
+  min-height: 1.5rem;
   flex-shrink: 0;
 }
 

@@ -208,7 +208,7 @@ export default {
         visible: false,
         x: 0,
         y: 0,
-        type: 'empty',
+        type: 'wave',
         operation: null,
         wave: null,
         waveIndex: null,
