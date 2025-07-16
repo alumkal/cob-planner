@@ -165,6 +165,22 @@
                   <li><strong>多项操作</strong>：支持同时复制粘贴多个选中的项目</li>
                   <li><strong>提示反馈</strong>：复制粘贴操作会显示Toast提示</li>
                 </ul>
+                
+                <h5>位置感知粘贴</h5>
+                
+                <p><strong>粘贴操作时：</strong></p>
+                <ul>
+                  <li><strong>选中操作时</strong>：粘贴到选中的操作之前</li>
+                  <li><strong>选中波次时</strong>：粘贴到选中波次的末尾</li>
+                  <li><strong>右键菜单粘贴</strong>：粘贴到右键点击的波次</li>
+                  <li><strong>无选择时</strong>：粘贴到最后一个波次末尾</li>
+                </ul>
+                
+                <p><strong>粘贴波次时：</strong></p>
+                <ul>
+                  <li><strong>选中波次时</strong>：粘贴到选中的波次之前</li>
+                  <li><strong>无选择时</strong>：粘贴到末尾</li>
+                </ul>
 
                 <h5>右键菜单</h5>
                 <ul>
@@ -182,12 +198,6 @@
                       <li>📄 粘贴波次</li>
                       <li>🔄 克隆波次</li>
                       <li>🗑️ 删除波次</li>
-                    </ul>
-                  </li>
-                  <li><strong>空白区域右键菜单</strong>：
-                    <ul>
-                      <li>📄 粘贴操作/波次</li>
-                      <li>➕ 添加操作/波次</li>
                     </ul>
                   </li>
                 </ul>

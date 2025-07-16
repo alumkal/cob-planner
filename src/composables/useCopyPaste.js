@@ -521,7 +521,7 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
   };
   
   // Handle paste keyboard shortcut
-  const handlePasteShortcut = async () => {
+  const handlePasteShortcut = async (contextTargetWaveIndex = null) => {
     const clipboardData = await store.dispatch('clipboard/getClipboardForPaste');
     if (!clipboardData) return;
     
@@ -535,6 +535,9 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
       if (selection.type === 'operation' || selection.type === 'wave') {
         // Use selected wave
         targetWaveIndex = selection.waveIndex;
+      } else if (contextTargetWaveIndex !== null) {
+        // Use context menu target wave (right-click location)
+        targetWaveIndex = contextTargetWaveIndex;
       } else {
         // Use last wave as fallback
         const waves = store.getters['waves/waves'];
@@ -594,6 +597,9 @@ export function useCopyPaste(enableKeyboardShortcuts = true) {
         targetWaveIndex = selection.waveIndex;
       } else if (selection.type === 'operation') {
         targetWaveIndex = selection.waveIndex;
+      } else if (contextTargetWaveIndex !== null) {
+        // Use context menu target wave (right-click location)
+        targetWaveIndex = contextTargetWaveIndex;
       }
       
       // Handle multiple waves directly

@@ -158,15 +158,12 @@
       :wave="contextMenu.wave"
       :wave-index="contextMenu.waveIndex"
       :op-index="contextMenu.opIndex"
-      :target-wave-index="contextMenu.targetWaveIndex"
       :theme="theme"
       @close="hideContextMenu"
       @duplicate-operation="handleDuplicateOperation"
       @duplicate-wave="handleDuplicateWave"
       @delete-operation="handleRemoveOperation"
-      @delete-wave="handleRemoveWave"
-      @add-operation="addOperation"
-      @add-wave="addWave"
+      @add-wave="handleAddWave"
     />
   </div>
 </template>
@@ -215,8 +212,7 @@ export default {
         operation: null,
         wave: null,
         waveIndex: null,
-        opIndex: null,
-        targetWaveIndex: null
+        opIndex: null
       }
     };
   },
@@ -314,6 +310,23 @@ export default {
     
     addWave() {
       this.$store.dispatch('waves/addWave');
+    },
+    
+    handleAddWave(targetWaveIndex = null) {
+      if (targetWaveIndex !== null) {
+        // Insert wave at specific position (before the target wave)
+        const currentWaves = [...this.waves];
+        const newWave = {
+          duration: 601,
+          notes: '',
+          operations: []
+        };
+        currentWaves.splice(targetWaveIndex, 0, newWave);
+        this.$store.dispatch('waves/setWaves', currentWaves);
+      } else {
+        // Add wave at the end (default behavior)
+        this.addWave();
+      }
     },
     
     handleRemoveWave(waveIndex) {
@@ -567,8 +580,7 @@ export default {
         operation: payload.operation || null,
         wave: payload.wave || null,
         waveIndex: payload.waveIndex,
-        opIndex: payload.opIndex !== undefined ? payload.opIndex : null,
-        targetWaveIndex: payload.targetWaveIndex !== undefined ? payload.targetWaveIndex : null
+        opIndex: payload.opIndex !== undefined ? payload.opIndex : null
       };
     },
     
@@ -609,16 +621,18 @@ export default {
       
       this.showContextMenu({
         event,
-        type: 'empty',
-        targetWaveIndex: waveIndex
+        type: 'wave',
+        wave: this.waves[waveIndex],
+        waveIndex: waveIndex
       });
     },
     
     handleEmptyAreaRightClick(event) {
       this.showContextMenu({
         event,
-        type: 'empty',
-        targetWaveIndex: null
+        type: 'wave',
+        wave: null,
+        waveIndex: null
       });
     },
     

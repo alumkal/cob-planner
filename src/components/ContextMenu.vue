@@ -45,7 +45,7 @@
         <button 
           class="context-menu-item"
           @click="copyWave"
-          :disabled="!wave"
+          v-if="wave"
         >
           📋 复制波次
         </button>
@@ -63,53 +63,13 @@
         >
           📄 粘贴波次
         </button>
-        <div class="context-menu-divider" v-if="hasOperationInClipboard || hasWaveInClipboard"></div>
-        <button 
-          class="context-menu-item"
-          @click="addOperationToWave"
-        >
-          ➕ 添加操作
-        </button>
-        <button 
-          class="context-menu-item"
-          @click="duplicateWave"
-          :disabled="!wave"
-        >
-          🔄 克隆波次
-        </button>
-        <div class="context-menu-divider"></div>
-        <button 
-          class="context-menu-item danger"
-          @click="deleteWave"
-          :disabled="!wave"
-        >
-          🗑️ 删除波次
-        </button>
-      </template>
-
-      <!-- Empty Area Context Menu -->
-      <template v-if="type === 'empty'">
-        <button 
-          class="context-menu-item"
-          @click="pasteOperation"
-          v-if="targetWaveIndex !== null && hasOperationInClipboard"
-        >
-          📄 粘贴操作
-        </button>
-        <button 
-          class="context-menu-item"
-          @click="pasteWave"
-          v-if="hasWaveInClipboard"
-        >
-          📄 粘贴波次
-        </button>
         <div class="context-menu-divider" v-if="hasClipboardData"></div>
         <button 
           class="context-menu-item"
-          @click="addOperation"
-          v-if="targetWaveIndex !== null"
+          @click="duplicateWave"
+          v-if="wave"
         >
-          ➕ 添加操作
+          🔄 克隆波次
         </button>
         <button 
           class="context-menu-item"
@@ -142,8 +102,8 @@ export default {
     },
     type: {
       type: String,
-      default: 'empty', // 'operation' | 'wave' | 'empty'
-      validator: value => ['operation', 'wave', 'empty'].includes(value)
+      default: 'wave', // 'operation' | 'wave'
+      validator: value => ['operation', 'wave'].includes(value)
     },
     operation: {
       type: Object,
@@ -158,10 +118,6 @@ export default {
       default: null
     },
     opIndex: {
-      type: Number,
-      default: null
-    },
-    targetWaveIndex: {
       type: Number,
       default: null
     },
@@ -200,7 +156,8 @@ export default {
     
     async pasteOperation() {
       // Use the copy-paste composable's paste shortcut handler for consistency
-      await this.copyPasteComposable.handlePasteShortcut();
+      // Pass the wave index from context menu
+      await this.copyPasteComposable.handlePasteShortcut(this.waveIndex);
       this.$emit('close');
     },
     
@@ -229,6 +186,7 @@ export default {
     
     async pasteWave() {
       // Use the copy-paste composable's paste shortcut handler for consistency
+      // For waves, don't pass target index to default to appending at the end
       await this.copyPasteComposable.handlePasteShortcut();
       this.$emit('close');
     },
@@ -242,30 +200,16 @@ export default {
       this.$emit('close');
     },
     
-    deleteWave() {
-      if (this.wave) {
-        this.$emit('delete-wave', { waveIndex: this.waveIndex });
-      }
-      this.$emit('close');
-    },
     
-    // General actions
-    addOperation() {
-      if (this.targetWaveIndex !== null) {
-        this.$emit('add-operation', this.targetWaveIndex);
-      }
-      this.$emit('close');
-    },
     
-    addOperationToWave() {
-      if (this.waveIndex !== null) {
-        this.$emit('add-operation', this.waveIndex);
-      }
-      this.$emit('close');
-    },
     
     addWave() {
-      this.$emit('add-wave');
+      // Pass wave index if available (for inserting before current wave)
+      if (this.waveIndex !== null) {
+        this.$emit('add-wave', this.waveIndex);
+      } else {
+        this.$emit('add-wave');
+      }
       this.$emit('close');
     }
   }
