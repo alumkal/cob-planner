@@ -333,8 +333,8 @@ export default {
   padding: 0;
   line-height: 1;
   font-size: 18px;
-  min-width: 1.25rem;
-  min-height: 1.5rem;
+  min-width: 20px;
+  min-height: 24px;
   flex-shrink: 0;
 }
 
