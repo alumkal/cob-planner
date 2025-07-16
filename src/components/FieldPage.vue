@@ -1,7 +1,7 @@
 <template>
   <div class="field-page">
     <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center" style="padding: 0.75rem 1rem;">
+      <div class="card-header d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-4">
           <h5 class="mb-0">布阵设置</h5>
           <div class="d-flex align-items-center">

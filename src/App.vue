@@ -81,6 +81,12 @@ body {
   color: var(--dark-text);
 }
 
+.card-header {
+  min-height: 3.5rem;
+  display: flex;
+  align-items: center;
+}
+
 .success-bg {
   background-color: var(--light-success) !important;
   color: white !important;

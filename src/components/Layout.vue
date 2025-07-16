@@ -14,6 +14,12 @@
             <li class="nav-item">
               <router-link class="nav-link" to="/reuse">复用计算</router-link>
             </li>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/help">帮助</router-link>
+            </li>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/about">关于</router-link>
+            </li>
           </ul>
           <div class="d-flex">
             <button 
